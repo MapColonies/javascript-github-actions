@@ -4,6 +4,8 @@ This repository contains a collection of JavaScript-based GitHub Actions that ca
 
 ## Actions
 
+
+- [jira-pull-request-integration](./actions/jira-pull-request-integration) - Helps connecting pull requests to jira including comments on the pull request and title validation
 ## Development
 
 ### Creating New Actions

@@ -1,0 +1,20 @@
+name: 'jira-pull-request-integration'
+description: 'Helps connecting pull requests to jira including comments on the
+  pull request and title validation'
+
+runs:
+  using: 'node20'
+  main: 'dist/jira-pull-request-integration/index.js'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  jira-base-url:
+    description: 'Base URL for Jira instance'
+    required: false
+    default: 'https://mapcolonies.atlassian.net'
+  jira-issue-pattern:
+    description: 'Regex pattern for Jira issue IDs'
+    required: false
+    default: 'MAPCO-[0-9]+'
