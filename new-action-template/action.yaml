@@ -4,3 +4,9 @@ description: 'A template for creating new GitHub Actions'
 runs:
   using: 'node20'
   main: 'index.js'
+
+inputs:
+  greeting:
+    description: 'Greeting message'
+    required: false
+    default: 'Hello'

@@ -1,6 +1,12 @@
 name: 'Hello World Action'
 description: 'A simple action that greets the world'
 
+inputs:
+  greeting:
+    description: 'Greeting message'
+    required: false
+    default: 'Hello'
+
 runs:
   using: 'node20'
-  main: 'index.js'
+  main: 'dist/hello-world/index.js'
