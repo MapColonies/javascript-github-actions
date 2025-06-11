@@ -377,19 +377,19 @@ const updateRootReadme = async (actionName, actionDescription) => {
       const headerWithNewline = actionsHeaderMatch[1];
       const headerIndex = readmeContent.indexOf(headerWithNewline);
       const afterHeader = headerIndex + headerWithNewline.length;
-      
+
       // Check if there's already content after the header
       const afterHeaderContent = readmeContent.substring(afterHeader);
       const nextSectionMatch = afterHeaderContent.match(/^## /m);
-      
+
       let insertPosition;
       let contentToInsert;
-      
+
       if (nextSectionMatch) {
         // There's a next section, check if there are existing actions
         const contentBeforeNextSection = afterHeaderContent.substring(0, nextSectionMatch.index);
         const hasExistingActions = contentBeforeNextSection.trim().length > 0;
-        
+
         if (hasExistingActions) {
           // Add after existing actions
           insertPosition = afterHeader + nextSectionMatch.index;
@@ -412,11 +412,9 @@ const updateRootReadme = async (actionName, actionDescription) => {
           contentToInsert = `\n${actionEntry}`;
         }
       }
-      
-      const updatedContent = readmeContent.substring(0, insertPosition) + 
-                           contentToInsert + 
-                           readmeContent.substring(insertPosition);
-      
+
+      const updatedContent = readmeContent.substring(0, insertPosition) + contentToInsert + readmeContent.substring(insertPosition);
+
       await writeFile(ROOT_README_PATH, updatedContent, 'utf8');
     }
   } else {
