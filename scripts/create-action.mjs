@@ -143,6 +143,14 @@ const copyTemplateFiles = async (templatePath, targetPath, actionName, actionDes
               if (item.key && item.key.value === 'description' && item.value) {
                 item.value.value = actionDescription;
               }
+              // Update main path in runs section
+              if (item.key && item.key.value === 'runs' && item.value && item.value.items) {
+                for (const runItem of item.value.items) {
+                  if (runItem.key && runItem.key.value === 'main' && runItem.value) {
+                    runItem.value.value = `dist/${actionName}/index.js`;
+                  }
+                }
+              }
             }
           }
         }
