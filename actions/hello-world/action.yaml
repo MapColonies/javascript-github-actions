@@ -1,0 +1,6 @@
+name: 'Hello World Action'
+description: 'A simple action that greets the world'
+
+runs:
+  using: 'node20'
+  main: 'index.js'

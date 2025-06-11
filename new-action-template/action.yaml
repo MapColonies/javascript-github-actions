@@ -1,0 +1,6 @@
+name: 'New action template'
+description: 'A template for creating new GitHub Actions'
+
+runs:
+  using: 'node20'
+  main: 'index.js'

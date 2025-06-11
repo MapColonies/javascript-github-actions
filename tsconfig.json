@@ -1,0 +1,9 @@
+{
+  "extends": "@map-colonies/tsconfig/tsconfig-app",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": null
+  },
+  "include": ["actions/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
