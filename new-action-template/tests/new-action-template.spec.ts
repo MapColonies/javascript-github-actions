@@ -14,9 +14,9 @@ const TEST_TOKEN = 'test-token' as const;
 const TEST_PR_NUMBER = 123 as const;
 
 /**
- * Test suite for the hello-world GitHub action
+ * Test suite for the {{ACTION_NAME}} GitHub action
  */
-describe('Hello World Action', () => {
+describe('{{ACTION_NAME}} Action', () => {
   let mockGetInput: MockedFunction<typeof core.getInput>;
   let mockSetFailed: MockedFunction<typeof core.setFailed>;
   let mockWarning: MockedFunction<typeof core.warning>;
