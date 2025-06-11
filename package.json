@@ -10,7 +10,13 @@
     "create-action": "node scripts/create-action.mjs",
     "test": "vitest run",
     "test:watch": "vitest watch",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "prelint:fix": "npm run format:fix",
+    "prelint": "npm run format",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix ."
   },
   "keywords": [],
   "author": "",
