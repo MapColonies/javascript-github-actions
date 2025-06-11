@@ -53,10 +53,5 @@
   "draft-pull-request": false,
   "include-v-in-tag": true,
   "separate-pull-requests": true,
-  "packages": {
-    "actions/hello-world": {
-      "release-type": "simple",
-      "extra-files": ["README.md"]
-    }
-  }
+  "packages": {}
 }

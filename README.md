@@ -2,8 +2,6 @@
 This repository contains a collection of JavaScript-based GitHub Actions that can be used in your workflows. Each action is designed to perform a specific task and can be easily integrated into your CI/CD pipelines.
 
 ## Actions
-- [hello-world](./actions/hello-world) - A simple action that prints "Hello World" to the console.
-
 
 ## Development
 
@@ -23,6 +21,4 @@ The script will:
 - Generate action README with usage examples
 - Update release configuration files
 - Add entry to this README
-
-## Development
 
