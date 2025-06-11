@@ -366,29 +366,59 @@ const updateRootReadme = async (actionName, actionDescription) => {
   // Find the actions section and add the new action
   const actionEntry = `- [${actionName}](./actions/${actionName}) - ${actionDescription}`;
 
-  // Look for the Actions section - handle both empty and populated sections
-  const actionsSectionRegex = /(## Actions\s*\n)([\s\S]*?)(?=\n## |\n\n## |$)/;
-  const match = readmeContent.match(actionsSectionRegex);
+  // Look for the Actions section header specifically
+  const actionsSectionHeaderRegex = /^## Actions\s*$/m;
+  const hasActionsSection = actionsSectionHeaderRegex.test(readmeContent);
 
-  if (match) {
-    const sectionHeader = match[1];
-    const existingContent = match[2];
-
-    // Check if section is effectively empty (only whitespace/newlines)
-    const hasExistingActions = existingContent.trim().length > 0;
-
-    let updatedActions;
-    if (hasExistingActions) {
-      // Add to existing actions
-      updatedActions = `${existingContent.trimEnd()}\n${actionEntry}`;
-    } else {
-      // First action in empty section
-      updatedActions = `\n${actionEntry}`;
+  if (hasActionsSection) {
+    // Find the line after "## Actions" and insert the new action there
+    const actionsHeaderMatch = readmeContent.match(/(^## Actions\s*\n)/m);
+    if (actionsHeaderMatch) {
+      const headerWithNewline = actionsHeaderMatch[1];
+      const headerIndex = readmeContent.indexOf(headerWithNewline);
+      const afterHeader = headerIndex + headerWithNewline.length;
+      
+      // Check if there's already content after the header
+      const afterHeaderContent = readmeContent.substring(afterHeader);
+      const nextSectionMatch = afterHeaderContent.match(/^## /m);
+      
+      let insertPosition;
+      let contentToInsert;
+      
+      if (nextSectionMatch) {
+        // There's a next section, check if there are existing actions
+        const contentBeforeNextSection = afterHeaderContent.substring(0, nextSectionMatch.index);
+        const hasExistingActions = contentBeforeNextSection.trim().length > 0;
+        
+        if (hasExistingActions) {
+          // Add after existing actions
+          insertPosition = afterHeader + nextSectionMatch.index;
+          contentToInsert = `${actionEntry}\n`;
+        } else {
+          // First action in empty section
+          insertPosition = afterHeader;
+          contentToInsert = `\n${actionEntry}\n`;
+        }
+      } else {
+        // No next section, add at the end of file
+        const hasExistingActions = afterHeaderContent.trim().length > 0;
+        if (hasExistingActions) {
+          // Add after existing actions
+          insertPosition = readmeContent.length;
+          contentToInsert = `\n${actionEntry}`;
+        } else {
+          // First action in empty section
+          insertPosition = afterHeader;
+          contentToInsert = `\n${actionEntry}`;
+        }
+      }
+      
+      const updatedContent = readmeContent.substring(0, insertPosition) + 
+                           contentToInsert + 
+                           readmeContent.substring(insertPosition);
+      
+      await writeFile(ROOT_README_PATH, updatedContent, 'utf8');
     }
-
-    const updatedContent = readmeContent.replace(actionsSectionRegex, `${sectionHeader}${updatedActions}\n`);
-
-    await writeFile(ROOT_README_PATH, updatedContent, 'utf8');
   } else {
     // If no actions section exists, add one at the end
     const updatedContent = readmeContent.trim() + `\n\n## Actions\n\n${actionEntry}\n`;
