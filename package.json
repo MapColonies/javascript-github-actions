@@ -5,6 +5,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
+    "prepare": "husky",
     "build": "tsc --project tsconfig.build.json",
     "create-action": "node scripts/create-action.mjs",
     "test": "vitest run",
@@ -26,6 +27,7 @@
     "commitlint": "^19.8.1",
     "eslint": "^9.23.0",
     "husky": "^9.1.7",
+    "lint-staged": "^16.1.0",
     "ora": "^8.2.0",
     "prettier": "^3.5.3",
     "pretty-quick": "^4.1.1",
