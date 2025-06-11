@@ -113,7 +113,14 @@ const copyTemplateFiles = async (templatePath, targetPath, actionName, actionDes
 
   for (const file of files) {
     const sourcePath = join(templatePath, file.name);
-    const targetFilePath = join(targetPath, file.name);
+
+    // Handle file renaming for template files that should use action name
+    let targetFileName = file.name;
+    if (file.name.includes('new-action-template')) {
+      targetFileName = file.name.replace(/new-action-template/g, actionName);
+    }
+
+    const targetFilePath = join(targetPath, targetFileName);
 
     if (file.isDirectory()) {
       await copyTemplateFiles(sourcePath, targetFilePath, actionName, actionDescription);
