@@ -143,14 +143,6 @@ const copyTemplateFiles = async (templatePath, targetPath, actionName, actionDes
               if (item.key && item.key.value === 'description' && item.value) {
                 item.value.value = actionDescription;
               }
-              // Update main path in runs section
-              if (item.key && item.key.value === 'runs' && item.value && item.value.items) {
-                for (const runItem of item.value.items) {
-                  if (runItem.key && runItem.key.value === 'main' && runItem.value) {
-                    runItem.value.value = `dist/${actionName}/index.js`;
-                  }
-                }
-              }
             }
           }
         }
@@ -180,7 +172,7 @@ ${actionDescription}
 ## Usage
 
 \`\`\`yaml
-uses: map-colonies/javascript-github-actions/actions/${actionName}@v1
+uses: mapcolonies/javascript-github-actions/actions/${actionName}@v1
 with:
   # Add your inputs here
 \`\`\`
@@ -203,7 +195,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: map-colonies/javascript-github-actions/actions/${actionName}@v1
+      - uses: mapcolonies/javascript-github-actions/actions/${actionName}@v1
 \`\`\`
 `;
 

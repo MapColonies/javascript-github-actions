@@ -45,7 +45,7 @@ jobs:
 
       - name: Check for uncommitted changes in dist
         run: |
-          git diff --exit-code dist
+          git diff --exit-code actions/**/dist/*
           echo 'Build check: TypeScript built and dist is up-to-date.'
           echo 'No uncommitted changes detected in compiled files.'
 

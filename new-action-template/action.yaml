@@ -3,9 +3,13 @@ description: 'A template for creating new GitHub Actions'
 
 runs:
   using: 'node20'
-  main: 'dist/new-action-template/index.js'
+  main: 'dist/index.js'
 
 inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: false
+    default: ${{ github.token }}
   greeting:
     description: 'Greeting message'
     required: false
