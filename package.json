@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "prepare": "husky",
-    "build": "tsc --project tsconfig.build.json",
+    "build": "node scripts/build-action.mjs",
     "create-action": "node scripts/create-action.mjs",
     "test": "vitest run",
     "test:watch": "vitest watch",
@@ -34,7 +34,6 @@
     "esbuild": "^0.25.5",
     "eslint": "^9.23.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.1.0",
     "lodash": "^4.17.21",
     "ora": "^8.2.0",
     "prettier": "^3.5.3",
