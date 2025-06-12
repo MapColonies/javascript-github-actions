@@ -19,14 +19,12 @@ const __dirname = dirname(__filename);
 const PROJECT_ROOT = join(__dirname, '..');
 const TEMPLATE_FOLDER = join(PROJECT_ROOT, 'new-action-template');
 const ACTIONS_FOLDER = join(PROJECT_ROOT, 'actions');
-const RELEASE_MANIFEST_PATH = join(PROJECT_ROOT, '.release-please-manifest.json');
 const RELEASE_CONFIG_PATH = join(PROJECT_ROOT, 'release-please-config.json');
 const ROOT_README_PATH = join(PROJECT_ROOT, 'README.md');
 
 // Constants for spinner timing to avoid magic numbers
 const COPY_FILES_DELAY = 800;
 const CREATE_README_DELAY = 600;
-const UPDATE_MANIFEST_DELAY = 700;
 const UPDATE_CONFIG_DELAY = 600;
 const UPDATE_ROOT_README_DELAY = 500;
 
@@ -221,44 +219,6 @@ const formatFileWithPrettier = async (filePath) => {
 };
 
 /**
- * Updates the release-please manifest with the new action
- * @param {string} actionName - Name of the action
- */
-const updateReleaseManifest = async (actionName) => {
-  let manifest = {};
-
-  try {
-    const manifestContent = await readFile(RELEASE_MANIFEST_PATH, 'utf8');
-    const trimmedContent = manifestContent.trim();
-
-    // Handle empty file or whitespace-only content
-    if (trimmedContent) {
-      manifest = JSON.parse(trimmedContent);
-    }
-  } catch (error) {
-    // If file doesn't exist or has invalid JSON, start with empty manifest
-    console.log('⚠️  Creating new release manifest file');
-    manifest = {};
-  }
-
-  // Add new action with initial version
-  manifest[`actions/${actionName}`] = '1.0.0';
-
-  // Sort the manifest keys alphabetically
-  const sortedManifest = Object.keys(manifest)
-    .sort()
-    .reduce((acc, key) => {
-      acc[key] = manifest[key];
-      return acc;
-    }, {});
-
-  await writeFile(RELEASE_MANIFEST_PATH, JSON.stringify(sortedManifest, null, 2) + '\n', 'utf8');
-
-  // Format the manifest file with Prettier
-  await formatFileWithPrettier(RELEASE_MANIFEST_PATH);
-};
-
-/**
  * Updates the release-please config with the new action
  * @param {string} actionName - Name of the action
  */
@@ -311,11 +271,10 @@ const updateReleaseConfig = async (actionName) => {
  * Cleans up partially created action in case of failure
  * @param {string} actionPath - Path to the action directory to clean up
  * @param {string} actionName - Name of the action for manifest cleanup
- * @param {string} originalManifest - Original manifest content to restore
  * @param {string} originalConfig - Original config content to restore
  * @param {string} originalReadme - Original README content to restore
  */
-const cleanupOnFailure = async (actionPath, actionName, originalManifest = null, originalConfig = null, originalReadme = null) => {
+const cleanupOnFailure = async (actionPath, actionName, originalConfig = null, originalReadme = null) => {
   console.log('🧹 Cleaning up after failure...');
 
   try {
@@ -323,12 +282,6 @@ const cleanupOnFailure = async (actionPath, actionName, originalManifest = null,
     if (existsSync(actionPath)) {
       await rm(actionPath, { recursive: true, force: true });
       console.log('✅ Removed action directory');
-    }
-
-    // Restore original manifest if we have it
-    if (originalManifest !== null) {
-      await writeFile(RELEASE_MANIFEST_PATH, originalManifest, 'utf8');
-      console.log('✅ Restored release manifest');
     }
 
     // Restore original config if we have it
@@ -421,7 +374,6 @@ const updateRootReadme = async (actionName, actionDescription) => {
  */
 const createNewAction = async () => {
   const rl = createReadlineInterface();
-  let originalManifest = null;
   let originalConfig = null;
   let originalReadme = null;
   let actionPath = null;
@@ -462,7 +414,6 @@ const createNewAction = async () => {
     console.log(`\n📝 Creating action "${actionName}"...`);
 
     // Store original content for potential rollback
-    originalManifest = await readFileOrNull(RELEASE_MANIFEST_PATH);
     originalConfig = await readFileOrNull(RELEASE_CONFIG_PATH);
     originalReadme = await readFileOrNull(ROOT_README_PATH);
 
@@ -477,12 +428,6 @@ const createNewAction = async () => {
     await createActionReadme(actionPath, actionName, actionDescription);
     await sleep(CREATE_README_DELAY);
     activeSpinner.succeed('README created');
-
-    // Update release manifest
-    activeSpinner = ora('Updating release manifest...').start();
-    await updateReleaseManifest(actionName);
-    await sleep(UPDATE_MANIFEST_DELAY);
-    activeSpinner.succeed('Release manifest updated');
 
     // Update release config
     activeSpinner = ora('Updating release config...').start();
@@ -516,7 +461,7 @@ const createNewAction = async () => {
 
     // Perform cleanup
     if (actionPath) {
-      await cleanupOnFailure(actionPath, null, originalManifest, originalConfig, originalReadme);
+      await cleanupOnFailure(actionPath, null, originalConfig, originalReadme);
     }
 
     process.exit(1);
