@@ -22,3 +22,7 @@ inputs:
   bypass-labels:
     description: 'Comma-separated list of labels that bypass Jira validation'
     required: false
+  bypass-users:
+    description: 'Comma-separated list of usernames that bypass Jira validation'
+    required: false
+    default: 'dependabot[bot],mapcolonies-devops'
