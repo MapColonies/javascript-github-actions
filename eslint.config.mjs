@@ -24,4 +24,4 @@ const customConfig = {
   },
 };
 
-export default config(tsBaseConfig, { ignores: ['new-action-template', 'vitest.config.mts'], customConfig });
+export default config(tsBaseConfig, { ignores: ['new-action-template', 'vitest.config.mts'] }, customConfig);

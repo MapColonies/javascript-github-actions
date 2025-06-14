@@ -69,7 +69,7 @@ async function setCommitStatus(
 
   const statusState = hasJira ? SUCCESS_STATE : ERROR_STATE;
   const statusDescription = hasJira ? 'Jira issue found in PR title' : 'Jira issue required in PR title (format: MAPCO-1234)';
-  const targetUrl = hasJira && jiraIssue ? `${jiraBaseUrl}/browse/${jiraIssue}` : undefined;
+  const targetUrl = hasJira && jiraIssue !== undefined ? `${jiraBaseUrl}/browse/${jiraIssue}` : undefined;
 
   await octokit.rest.repos.createCommitStatus({
     owner,
@@ -189,7 +189,7 @@ export async function run(): Promise<void> {
       return;
     }
 
-    const hasJiraBaseUrl = jiraBaseUrl !== undefined && jiraBaseUrl !== '';
+    const hasJiraBaseUrl = jiraBaseUrl !== '';
     if (!hasJiraBaseUrl) {
       core.setFailed('Jira base URL is required');
       return;

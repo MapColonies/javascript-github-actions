@@ -74,7 +74,6 @@ describe('jira-integration Action', () => {
           number: testPrNumber,
         },
         payload: {
-          // eslint-disable-next-line @typescript-eslint/naming-convention
           pull_request: {
             title: testPrTitleWithJira,
             head: {
@@ -163,7 +162,6 @@ describe('jira-integration Action', () => {
           number: testPrNumber,
         },
         payload: {
-          // eslint-disable-next-line @typescript-eslint/naming-convention
           pull_request: {
             title: testPrTitleWithoutJira,
             head: {
@@ -398,7 +396,6 @@ describe('jira-integration Action', () => {
           number: testPrNumber,
         },
         payload: {
-          // eslint-disable-next-line @typescript-eslint/naming-convention
           pull_request: {
             title: customTitle,
             head: {
