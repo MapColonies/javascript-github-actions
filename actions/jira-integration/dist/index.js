@@ -216,7 +216,7 @@ var require_proxy = __commonJS({
     exports2.checkBypass = exports2.getProxyUrl = void 0;
     function getProxyUrl(reqUrl) {
       const usingSsl = reqUrl.protocol === "https:";
-      if (checkBypass(reqUrl)) {
+      if (checkBypass2(reqUrl)) {
         return void 0;
       }
       const proxyVar = (() => {
@@ -238,7 +238,7 @@ var require_proxy = __commonJS({
       }
     }
     exports2.getProxyUrl = getProxyUrl;
-    function checkBypass(reqUrl) {
+    function checkBypass2(reqUrl) {
       if (!reqUrl.hostname) {
         return false;
       }
@@ -269,7 +269,7 @@ var require_proxy = __commonJS({
       }
       return false;
     }
-    exports2.checkBypass = checkBypass;
+    exports2.checkBypass = checkBypass2;
     function isLoopbackAddress(host) {
       const hostLower = host.toLowerCase();
       return hostLower === "localhost" || hostLower.startsWith("127.") || hostLower.startsWith("[::1]") || hostLower.startsWith("[0:0:0:0:0:0:0:1]");
@@ -4261,18 +4261,18 @@ var require_webidl = __commonJS({
     webidl.errors.exception = function(message) {
       return new TypeError(`${message.header}: ${message.message}`);
     };
-    webidl.errors.conversionFailed = function(context2) {
-      const plural = context2.types.length === 1 ? "" : " one of";
-      const message = `${context2.argument} could not be converted to${plural}: ${context2.types.join(", ")}.`;
+    webidl.errors.conversionFailed = function(context) {
+      const plural = context.types.length === 1 ? "" : " one of";
+      const message = `${context.argument} could not be converted to${plural}: ${context.types.join(", ")}.`;
       return webidl.errors.exception({
-        header: context2.prefix,
+        header: context.prefix,
         message
       });
     };
-    webidl.errors.invalidArgument = function(context2) {
+    webidl.errors.invalidArgument = function(context) {
       return webidl.errors.exception({
-        header: context2.prefix,
-        message: `"${context2.value}" is an invalid ${context2.type}.`
+        header: context.prefix,
+        message: `"${context.value}" is an invalid ${context.type}.`
       });
     };
     webidl.brandCheck = function(V, I, opts = void 0) {
@@ -9598,15 +9598,15 @@ var require_api_request = __commonJS({
         }
         addSignal(this, signal);
       }
-      onConnect(abort, context2) {
+      onConnect(abort, context) {
         if (!this.callback) {
           throw new RequestAbortedError();
         }
         this.abort = abort;
-        this.context = context2;
+        this.context = context;
       }
       onHeaders(statusCode, rawHeaders, resume, statusMessage) {
-        const { callback, opaque, abort, context: context2, responseHeaders, highWaterMark } = this;
+        const { callback, opaque, abort, context, responseHeaders, highWaterMark } = this;
         const headers = responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
         if (statusCode < 200) {
           if (this.onInfo) {
@@ -9633,7 +9633,7 @@ var require_api_request = __commonJS({
               trailers: this.trailers,
               opaque,
               body,
-              context: context2
+              context
             });
           }
         }
@@ -9753,15 +9753,15 @@ var require_api_stream = __commonJS({
         }
         addSignal(this, signal);
       }
-      onConnect(abort, context2) {
+      onConnect(abort, context) {
         if (!this.callback) {
           throw new RequestAbortedError();
         }
         this.abort = abort;
-        this.context = context2;
+        this.context = context;
       }
       onHeaders(statusCode, rawHeaders, resume, statusMessage) {
-        const { factory, opaque, context: context2, callback, responseHeaders } = this;
+        const { factory, opaque, context, callback, responseHeaders } = this;
         const headers = responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
         if (statusCode < 200) {
           if (this.onInfo) {
@@ -9789,7 +9789,7 @@ var require_api_stream = __commonJS({
             statusCode,
             headers,
             opaque,
-            context: context2
+            context
           });
           if (!res || typeof res.write !== "function" || typeof res.end !== "function" || typeof res.on !== "function") {
             throw new InvalidReturnValueError("expected Writable");
@@ -9981,17 +9981,17 @@ var require_api_pipeline = __commonJS({
         this.res = null;
         addSignal(this, signal);
       }
-      onConnect(abort, context2) {
+      onConnect(abort, context) {
         const { ret, res } = this;
         assert(!res, "pipeline cannot be retried");
         if (ret.destroyed) {
           throw new RequestAbortedError();
         }
         this.abort = abort;
-        this.context = context2;
+        this.context = context;
       }
       onHeaders(statusCode, rawHeaders, resume) {
-        const { opaque, handler, context: context2 } = this;
+        const { opaque, handler, context } = this;
         if (statusCode < 200) {
           if (this.onInfo) {
             const headers = this.responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
@@ -10009,7 +10009,7 @@ var require_api_pipeline = __commonJS({
             headers,
             opaque,
             body: this.res,
-            context: context2
+            context
           });
         } catch (err) {
           this.res.on("error", util.nop);
@@ -10093,7 +10093,7 @@ var require_api_upgrade = __commonJS({
         this.context = null;
         addSignal(this, signal);
       }
-      onConnect(abort, context2) {
+      onConnect(abort, context) {
         if (!this.callback) {
           throw new RequestAbortedError();
         }
@@ -10104,7 +10104,7 @@ var require_api_upgrade = __commonJS({
         throw new SocketError("bad upgrade", null);
       }
       onUpgrade(statusCode, rawHeaders, socket) {
-        const { callback, opaque, context: context2 } = this;
+        const { callback, opaque, context } = this;
         assert.strictEqual(statusCode, 101);
         removeSignal(this);
         this.callback = null;
@@ -10113,7 +10113,7 @@ var require_api_upgrade = __commonJS({
           headers,
           socket,
           opaque,
-          context: context2
+          context
         });
       }
       onError(err) {
@@ -10181,18 +10181,18 @@ var require_api_connect = __commonJS({
         this.abort = null;
         addSignal(this, signal);
       }
-      onConnect(abort, context2) {
+      onConnect(abort, context) {
         if (!this.callback) {
           throw new RequestAbortedError();
         }
         this.abort = abort;
-        this.context = context2;
+        this.context = context;
       }
       onHeaders() {
         throw new SocketError("bad connect", null);
       }
       onUpgrade(statusCode, rawHeaders, socket) {
-        const { callback, opaque, context: context2 } = this;
+        const { callback, opaque, context } = this;
         removeSignal(this);
         this.callback = null;
         let headers = rawHeaders;
@@ -10204,7 +10204,7 @@ var require_api_connect = __commonJS({
           headers,
           socket,
           opaque,
-          context: context2
+          context
         });
       }
       onError(err) {
@@ -17581,12 +17581,12 @@ var require_lib = __commonJS({
             throw new Error("Client has already been disposed.");
           }
           const parsedUrl = new URL(requestUrl);
-          let info2 = this._prepareRequest(verb, parsedUrl, headers);
+          let info = this._prepareRequest(verb, parsedUrl, headers);
           const maxTries = this._allowRetries && RetryableHttpVerbs.includes(verb) ? this._maxRetries + 1 : 1;
           let numTries = 0;
           let response;
           do {
-            response = yield this.requestRaw(info2, data);
+            response = yield this.requestRaw(info, data);
             if (response && response.message && response.message.statusCode === HttpCodes.Unauthorized) {
               let authenticationHandler;
               for (const handler of this.handlers) {
@@ -17596,7 +17596,7 @@ var require_lib = __commonJS({
                 }
               }
               if (authenticationHandler) {
-                return authenticationHandler.handleAuthentication(this, info2, data);
+                return authenticationHandler.handleAuthentication(this, info, data);
               } else {
                 return response;
               }
@@ -17619,8 +17619,8 @@ var require_lib = __commonJS({
                   }
                 }
               }
-              info2 = this._prepareRequest(verb, parsedRedirectUrl, headers);
-              response = yield this.requestRaw(info2, data);
+              info = this._prepareRequest(verb, parsedRedirectUrl, headers);
+              response = yield this.requestRaw(info, data);
               redirectsRemaining--;
             }
             if (!response.message.statusCode || !HttpResponseRetryCodes.includes(response.message.statusCode)) {
@@ -17649,7 +17649,7 @@ var require_lib = __commonJS({
        * @param info
        * @param data
        */
-      requestRaw(info2, data) {
+      requestRaw(info, data) {
         return __awaiter(this, void 0, void 0, function* () {
           return new Promise((resolve, reject) => {
             function callbackForResult(err, res) {
@@ -17661,7 +17661,7 @@ var require_lib = __commonJS({
                 resolve(res);
               }
             }
-            this.requestRawWithCallback(info2, data, callbackForResult);
+            this.requestRawWithCallback(info, data, callbackForResult);
           });
         });
       }
@@ -17671,12 +17671,12 @@ var require_lib = __commonJS({
        * @param data
        * @param onResult
        */
-      requestRawWithCallback(info2, data, onResult) {
+      requestRawWithCallback(info, data, onResult) {
         if (typeof data === "string") {
-          if (!info2.options.headers) {
-            info2.options.headers = {};
+          if (!info.options.headers) {
+            info.options.headers = {};
           }
-          info2.options.headers["Content-Length"] = Buffer.byteLength(data, "utf8");
+          info.options.headers["Content-Length"] = Buffer.byteLength(data, "utf8");
         }
         let callbackCalled = false;
         function handleResult(err, res) {
@@ -17685,7 +17685,7 @@ var require_lib = __commonJS({
             onResult(err, res);
           }
         }
-        const req = info2.httpModule.request(info2.options, (msg) => {
+        const req = info.httpModule.request(info.options, (msg) => {
           const res = new HttpClientResponse(msg);
           handleResult(void 0, res);
         });
@@ -17697,7 +17697,7 @@ var require_lib = __commonJS({
           if (socket) {
             socket.end();
           }
-          handleResult(new Error(`Request timeout: ${info2.options.path}`));
+          handleResult(new Error(`Request timeout: ${info.options.path}`));
         });
         req.on("error", function(err) {
           handleResult(err);
@@ -17733,27 +17733,27 @@ var require_lib = __commonJS({
         return this._getProxyAgentDispatcher(parsedUrl, proxyUrl);
       }
       _prepareRequest(method, requestUrl, headers) {
-        const info2 = {};
-        info2.parsedUrl = requestUrl;
-        const usingSsl = info2.parsedUrl.protocol === "https:";
-        info2.httpModule = usingSsl ? https : http;
+        const info = {};
+        info.parsedUrl = requestUrl;
+        const usingSsl = info.parsedUrl.protocol === "https:";
+        info.httpModule = usingSsl ? https : http;
         const defaultPort = usingSsl ? 443 : 80;
-        info2.options = {};
-        info2.options.host = info2.parsedUrl.hostname;
-        info2.options.port = info2.parsedUrl.port ? parseInt(info2.parsedUrl.port) : defaultPort;
-        info2.options.path = (info2.parsedUrl.pathname || "") + (info2.parsedUrl.search || "");
-        info2.options.method = method;
-        info2.options.headers = this._mergeHeaders(headers);
+        info.options = {};
+        info.options.host = info.parsedUrl.hostname;
+        info.options.port = info.parsedUrl.port ? parseInt(info.parsedUrl.port) : defaultPort;
+        info.options.path = (info.parsedUrl.pathname || "") + (info.parsedUrl.search || "");
+        info.options.method = method;
+        info.options.headers = this._mergeHeaders(headers);
         if (this.userAgent != null) {
-          info2.options.headers["user-agent"] = this.userAgent;
+          info.options.headers["user-agent"] = this.userAgent;
         }
-        info2.options.agent = this._getAgent(info2.parsedUrl);
+        info.options.agent = this._getAgent(info.parsedUrl);
         if (this.handlers) {
           for (const handler of this.handlers) {
-            handler.prepareRequest(info2.options);
+            handler.prepareRequest(info.options);
           }
         }
-        return info2;
+        return info;
       }
       _mergeHeaders(headers) {
         if (this.requestOptions && this.requestOptions.headers) {
@@ -19735,18 +19735,18 @@ Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
       (0, command_1.issueCommand)("error", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
     exports2.error = error;
-    function warning2(message, properties = {}) {
+    function warning(message, properties = {}) {
       (0, command_1.issueCommand)("warning", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
-    exports2.warning = warning2;
+    exports2.warning = warning;
     function notice(message, properties = {}) {
       (0, command_1.issueCommand)("notice", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
     exports2.notice = notice;
-    function info2(message) {
+    function info(message) {
       process.stdout.write(message + os.EOL);
     }
-    exports2.info = info2;
+    exports2.info = info;
     function startGroup(name) {
       (0, command_1.issue)("group", name);
     }
@@ -20287,8 +20287,8 @@ var require_dist_node2 = __commonJS({
     function isKeyOperator(operator) {
       return operator === ";" || operator === "&" || operator === "?";
     }
-    function getValues(context2, operator, key, modifier) {
-      var value = context2[key], result = [];
+    function getValues(context, operator, key, modifier) {
+      var value = context[key], result = [];
       if (isDefined(value) && value !== "") {
         if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
           value = value.toString();
@@ -20352,7 +20352,7 @@ var require_dist_node2 = __commonJS({
         expand: expand.bind(null, template)
       };
     }
-    function expand(template, context2) {
+    function expand(template, context) {
       var operators = ["+", "#", ".", "/", ";", "?", "&"];
       template = template.replace(
         /\{([^\{\}]+)\}|([^\{\}]+)/g,
@@ -20366,7 +20366,7 @@ var require_dist_node2 = __commonJS({
             }
             expression.split(/,/g).forEach(function(variable) {
               var tmp = /([^:\*]*)(?::(\d+)|(\*))?/.exec(variable);
-              values.push(getValues(context2, operator, tmp[1], tmp[2] || tmp[3]));
+              values.push(getValues(context, operator, tmp[1], tmp[2] || tmp[3]));
             });
             if (operator && operator !== "+") {
               var separator = ",";
@@ -23871,12 +23871,58 @@ var require_github = __commonJS({
 });
 
 // actions/jira-integration/main.ts
-var core = __toESM(require_core());
-var github = __toESM(require_github());
+var import_core = __toESM(require_core());
+var import_github = __toESM(require_github());
 var JIRA_STATUS_CONTEXT = "jira/issue-validation";
 var JIRA_COMMENT_IDENTIFIER = "\u{1F3AB} Related Jira Issue";
 var SUCCESS_STATE = "success";
 var ERROR_STATE = "error";
+function validateInputs(token, jiraBaseUrl) {
+  const hasToken = token !== void 0 && token !== "";
+  if (!hasToken) {
+    (0, import_core.setFailed)("GitHub token is required");
+    return false;
+  }
+  const hasJiraBaseUrl = jiraBaseUrl !== "";
+  if (!hasJiraBaseUrl) {
+    (0, import_core.setFailed)("Jira base URL is required");
+    return false;
+  }
+  return true;
+}
+function extractContextInfo(context) {
+  const isPullRequestEvent = context.eventName === "pull_request";
+  if (!isPullRequestEvent) {
+    (0, import_core.warning)("This action is designed to work with pull request events");
+    return void 0;
+  }
+  const hasPullRequestPayload = context.payload.pull_request !== void 0;
+  if (!hasPullRequestPayload) {
+    (0, import_core.setFailed)("Pull request payload not found in context");
+    return void 0;
+  }
+  const { owner, repo } = context.repo;
+  const prNumber = context.issue.number;
+  const pullRequest = context.payload.pull_request;
+  const prTitle = pullRequest.title;
+  const prSha = pullRequest.head.sha;
+  const prAuthor = pullRequest.user?.login;
+  return {
+    owner,
+    repo,
+    prNumber,
+    prTitle,
+    prSha,
+    prAuthor
+  };
+}
+function isUserBypassed(prAuthor, bypassUsersInput) {
+  if (!bypassUsersInput.trim()) {
+    return false;
+  }
+  const bypassUsers = bypassUsersInput.split(",").map((user) => user.trim());
+  return bypassUsers.includes(prAuthor);
+}
 function extractJiraIssue(title, pattern) {
   const regex = new RegExp(pattern);
   const match = title.match(regex);
@@ -23900,7 +23946,6 @@ async function setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl) {
     repo,
     sha: prSha,
     state: statusState,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     target_url: targetUrl,
     description: statusDescription,
     context: JIRA_STATUS_CONTEXT
@@ -23911,7 +23956,6 @@ async function findExistingJiraComment(octokit, contextInfo) {
   const comments = await octokit.rest.issues.listComments({
     owner,
     repo,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     issue_number: prNumber
   });
   const existingComment = comments.data.find((comment) => {
@@ -23934,76 +23978,108 @@ async function createOrUpdateJiraComment(octokit, contextInfo, jiraIssue, jiraBa
       comment_id: existingCommentId,
       body: commentBody
     });
-    core.info(`Updated existing Jira comment for issue: ${jiraIssue}`);
+    (0, import_core.info)(`Updated existing Jira comment for issue: ${jiraIssue}`);
   } else {
     await octokit.rest.issues.createComment({
       owner,
       repo,
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       issue_number: prNumber,
       body: commentBody
     });
-    core.info(`Created new Jira comment for issue: ${jiraIssue}`);
+    (0, import_core.info)(`Created new Jira comment for issue: ${jiraIssue}`);
   }
 }
-function extractGitHubContext(context2) {
-  const { owner, repo } = context2.repo;
-  const prNumber = context2.issue.number;
-  const prTitle = context2.payload.pull_request?.title ?? "";
-  const prSha = context2.payload.pull_request?.head?.sha ?? "";
-  return {
+function parseBypassLabels(bypassLabelsInput) {
+  if (bypassLabelsInput === "") {
+    return [];
+  }
+  return bypassLabelsInput.split(",").map((label) => label.trim()).filter((label) => label !== "");
+}
+async function hasBypassLabels(octokit, contextInfo, bypassLabels) {
+  if (bypassLabels.length === 0) {
+    return false;
+  }
+  const { owner, repo, prNumber } = contextInfo;
+  const response = await octokit.rest.issues.listLabelsOnIssue({
     owner,
     repo,
-    prNumber,
-    prTitle,
-    prSha
+    issue_number: prNumber
+  });
+  const prLabels = response.data.map((label) => label.name);
+  const hasBypassLabel = bypassLabels.some((bypassLabel) => prLabels.includes(bypassLabel));
+  return hasBypassLabel;
+}
+async function checkBypass(octokit, contextInfo, bypassUsersInput, bypassLabelsInput) {
+  const { prAuthor } = contextInfo;
+  const isPrAuthorBypassed = prAuthor !== void 0 && isUserBypassed(prAuthor, bypassUsersInput);
+  if (isPrAuthorBypassed) {
+    return { bypassed: true, reason: `PR author ${prAuthor} is in bypass list` };
+  }
+  const bypassLabels = parseBypassLabels(bypassLabelsInput);
+  const prHasBypassLabels = await hasBypassLabels(octokit, contextInfo, bypassLabels);
+  if (prHasBypassLabels) {
+    return { bypassed: true, reason: "PR has bypass labels" };
+  }
+  return { bypassed: false };
+}
+async function setBypassedStatus(octokit, contextInfo, jiraBaseUrl) {
+  await setCommitStatus(octokit, contextInfo, { hasJira: true, jiraIssue: void 0 }, jiraBaseUrl);
+}
+async function processJiraValidation(octokit, contextInfo, jiraIssuePattern, jiraBaseUrl) {
+  const jiraResult = extractJiraIssue(contextInfo.prTitle, jiraIssuePattern);
+  const hasJiraIssue = jiraResult.hasJira && jiraResult.jiraIssue !== void 0;
+  if (hasJiraIssue) {
+    (0, import_core.info)(`Found Jira issue: ${jiraResult.jiraIssue}`);
+  } else {
+    (0, import_core.warning)("No Jira issue found in PR title");
+  }
+  await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl);
+  (0, import_core.info)(`Set commit status: ${jiraResult.hasJira ? "success" : "error"}`);
+  if (hasJiraIssue && jiraResult.jiraIssue !== void 0) {
+    await createOrUpdateJiraComment(octokit, contextInfo, jiraResult.jiraIssue, jiraBaseUrl);
+  }
+}
+function getActionInputs() {
+  const githubTokenInput = (0, import_core.getInput)("github-token");
+  const envToken = process.env.GITHUB_TOKEN;
+  const patternInput = (0, import_core.getInput)("jira-issue-pattern");
+  const token = githubTokenInput !== "" ? githubTokenInput : envToken ?? "";
+  const jiraIssuePattern = patternInput !== "" ? patternInput : "MAPCO-\\d+";
+  return {
+    token,
+    jiraBaseUrl: (0, import_core.getInput)("jira-base-url"),
+    jiraIssuePattern,
+    bypassLabelsInput: (0, import_core.getInput)("bypass-labels"),
+    bypassUsersInput: (0, import_core.getInput)("bypass-users")
   };
+}
+async function handleWorkflow(octokit, contextInfo, inputs) {
+  (0, import_core.info)(`Processing PR #${contextInfo.prNumber}: "${contextInfo.prTitle}"`);
+  const bypassResult = await checkBypass(octokit, contextInfo, inputs.bypassUsersInput, inputs.bypassLabelsInput);
+  if (bypassResult.bypassed) {
+    (0, import_core.info)(`Bypassing Jira validation: ${bypassResult.reason}`);
+    await setBypassedStatus(octokit, contextInfo, inputs.jiraBaseUrl);
+    return;
+  }
+  await processJiraValidation(octokit, contextInfo, inputs.jiraIssuePattern, inputs.jiraBaseUrl);
+  (0, import_core.info)("Jira integration completed successfully");
 }
 async function run() {
   try {
-    const token = core.getInput("github-token") || process.env.GITHUB_TOKEN;
-    const jiraBaseUrl = core.getInput("jira-base-url");
-    const jiraIssuePattern = core.getInput("jira-issue-pattern") || "MAPCO-\\d+";
-    const hasToken = token !== void 0 && token !== "";
-    if (!hasToken) {
-      core.setFailed("GitHub token is required");
+    const inputs = getActionInputs();
+    const isValidInput = validateInputs(inputs.token, inputs.jiraBaseUrl);
+    if (!isValidInput) {
       return;
     }
-    const hasJiraBaseUrl = jiraBaseUrl !== "";
-    if (!hasJiraBaseUrl) {
-      core.setFailed("Jira base URL is required");
+    const contextInfo = extractContextInfo(import_github.context);
+    if (contextInfo === void 0) {
       return;
     }
-    const context2 = github.context;
-    const isPullRequestEvent = context2.eventName === "pull_request";
-    if (!isPullRequestEvent) {
-      core.warning("This action is designed to work with pull request events");
-      return;
-    }
-    const hasPullRequestPayload = context2.payload.pull_request !== void 0;
-    if (!hasPullRequestPayload) {
-      core.setFailed("Pull request payload not found in context");
-      return;
-    }
-    const contextInfo = extractGitHubContext(context2);
-    const octokit = github.getOctokit(token);
-    core.info(`Processing PR #${contextInfo.prNumber}: "${contextInfo.prTitle}"`);
-    const jiraResult = extractJiraIssue(contextInfo.prTitle, jiraIssuePattern);
-    const hasJiraIssue = jiraResult.hasJira && jiraResult.jiraIssue !== void 0;
-    if (hasJiraIssue) {
-      core.info(`Found Jira issue: ${jiraResult.jiraIssue}`);
-    } else {
-      core.warning("No Jira issue found in PR title");
-    }
-    await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl);
-    core.info(`Set commit status: ${jiraResult.hasJira ? "success" : "error"}`);
-    if (hasJiraIssue && jiraResult.jiraIssue !== void 0) {
-      await createOrUpdateJiraComment(octokit, contextInfo, jiraResult.jiraIssue, jiraBaseUrl);
-    }
-    core.info("Jira integration completed successfully");
+    const octokit = (0, import_github.getOctokit)(inputs.token);
+    await handleWorkflow(octokit, contextInfo, inputs);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-    core.setFailed(`Action failed with error: ${errorMessage}`);
+    (0, import_core.setFailed)(`Action failed: ${errorMessage}`);
   }
 }
 
