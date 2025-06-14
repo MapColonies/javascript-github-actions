@@ -128,6 +128,7 @@ function isUserBypassed(prAuthor: string, bypassUsersInput: string): boolean {
   }
 
   const bypassUsers = bypassUsersInput.split(',').map((user) => user.trim());
+
   return bypassUsers.includes(prAuthor);
 }
 
@@ -158,16 +159,33 @@ function extractJiraIssue(title: string, pattern: string): JiraCheckResult {
  * @param contextInfo - GitHub context information
  * @param jiraResult - Result of Jira issue check
  * @param jiraBaseUrl - Base URL for Jira instance
+ * @param bypassResult - Result of bypass check
  */
 async function setCommitStatus(
   octokit: ReturnType<typeof getOctokit>,
   contextInfo: GitHubContextInfo,
   jiraResult: JiraCheckResult,
-  jiraBaseUrl: string
+  jiraBaseUrl: string,
+  bypassResult: BypassResult
 ): Promise<void> {
   const { owner, repo, prSha } = contextInfo;
   const { hasJira, jiraIssue } = jiraResult;
 
+  // Handle bypass scenarios first
+  if (bypassResult.bypassed) {
+    await octokit.rest.repos.createCommitStatus({
+      owner,
+      repo,
+      sha: prSha,
+      state: SUCCESS_STATE,
+      target_url: undefined,
+      description: bypassResult.reason,
+      context: JIRA_STATUS_CONTEXT,
+    });
+    return;
+  }
+
+  // Handle normal Jira validation
   const statusState = hasJira ? SUCCESS_STATE : ERROR_STATE;
   const statusDescription = hasJira ? 'Jira issue found in PR title' : 'Jira issue required in PR title (format: MAPCO-1234)';
   const targetUrl = hasJira && jiraIssue !== undefined ? `${jiraBaseUrl}/browse/${jiraIssue}` : undefined;
@@ -177,7 +195,6 @@ async function setCommitStatus(
     repo,
     sha: prSha,
     state: statusState,
-
     target_url: targetUrl,
     description: statusDescription,
     context: JIRA_STATUS_CONTEXT,
@@ -316,18 +333,17 @@ async function checkBypass(
   bypassLabelsInput: string
 ): Promise<BypassResult> {
   const { prAuthor } = contextInfo;
-
   // Check if PR author is in bypass list
   const isPrAuthorBypassed = prAuthor !== undefined && isUserBypassed(prAuthor, bypassUsersInput);
   if (isPrAuthorBypassed) {
-    return { bypassed: true, reason: `PR author ${prAuthor} is in bypass list` };
+    return { bypassed: true, reason: 'Bypassed validation for user' };
   }
 
   // Check if PR has bypass labels
   const bypassLabels = parseBypassLabels(bypassLabelsInput);
   const prHasBypassLabels = await hasBypassLabels(octokit, contextInfo, bypassLabels);
   if (prHasBypassLabels) {
-    return { bypassed: true, reason: 'PR has bypass labels' };
+    return { bypassed: true, reason: 'Bypassed validation due to label' };
   }
 
   return { bypassed: false };
@@ -338,9 +354,15 @@ async function checkBypass(
  * @param octokit - GitHub API client
  * @param contextInfo - GitHub context information
  * @param jiraBaseUrl - Base URL for Jira instance
+ * @param bypassResult - Result of bypass check
  */
-async function setBypassedStatus(octokit: ReturnType<typeof getOctokit>, contextInfo: GitHubContextInfo, jiraBaseUrl: string): Promise<void> {
-  await setCommitStatus(octokit, contextInfo, { hasJira: true, jiraIssue: undefined }, jiraBaseUrl);
+async function setBypassedStatus(
+  octokit: ReturnType<typeof getOctokit>,
+  contextInfo: GitHubContextInfo,
+  jiraBaseUrl: string,
+  bypassResult: BypassResult
+): Promise<void> {
+  await setCommitStatus(octokit, contextInfo, { hasJira: false, jiraIssue: undefined }, jiraBaseUrl, bypassResult);
 }
 
 /**
@@ -367,7 +389,7 @@ async function processJiraValidation(
   }
 
   // Set commit status based on Jira validation
-  await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl);
+  await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl, { bypassed: false });
   logInfo(`Set commit status: ${jiraResult.hasJira ? 'success' : 'error'}`);
 
   // Add or update Jira link comment if issue found
@@ -412,7 +434,7 @@ async function handleWorkflow(octokit: ReturnType<typeof getOctokit>, contextInf
 
   if (bypassResult.bypassed) {
     logInfo(`Bypassing Jira validation: ${bypassResult.reason}`);
-    await setBypassedStatus(octokit, contextInfo, inputs.jiraBaseUrl);
+    await setBypassedStatus(octokit, contextInfo, inputs.jiraBaseUrl, bypassResult);
     return;
   }
 
