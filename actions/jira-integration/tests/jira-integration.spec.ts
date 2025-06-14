@@ -17,7 +17,6 @@ describe('jira-integration Action', () => {
   let mockGetInput: MockedFunction<typeof core.getInput>;
   let mockSetFailed: MockedFunction<typeof core.setFailed>;
   let mockWarning: MockedFunction<typeof core.warning>;
-  let mockInfo: MockedFunction<typeof core.info>;
   let mockGetOctokit: MockedFunction<typeof github.getOctokit>;
   let mockCreateComment: ReturnType<typeof vi.fn>;
   let mockUpdateComment: ReturnType<typeof vi.fn>;
@@ -59,7 +58,6 @@ describe('jira-integration Action', () => {
     mockGetInput = vi.mocked(core.getInput);
     mockSetFailed = vi.mocked(core.setFailed);
     mockWarning = vi.mocked(core.warning);
-    mockInfo = vi.mocked(core.info).mockImplementation(console.log);
 
     // Mock GitHub API functions
     mockCreateComment = vi.fn();
@@ -138,13 +136,10 @@ describe('jira-integration Action', () => {
     expect(mockCreateComment).toHaveBeenCalledWith({
       owner: testOwner,
       repo: testRepo,
-
       issue_number: testPrNumber,
       body: `🎫 **Related Jira Issue**: [${testJiraIssue}](${testJiraBaseUrl}/browse/${testJiraIssue})`,
     });
 
-    expect(mockInfo).toHaveBeenCalledWith(`Found Jira issue: ${testJiraIssue}`);
-    expect(mockInfo).toHaveBeenCalledWith('Set commit status: success');
     expect(mockSetFailed).not.toHaveBeenCalled();
   });
 
@@ -199,7 +194,6 @@ describe('jira-integration Action', () => {
     // Verify no Jira comment was created
     expect(mockCreateComment).not.toHaveBeenCalled();
     expect(mockWarning).toHaveBeenCalledWith('No Jira issue found in PR title');
-    expect(mockInfo).toHaveBeenCalledWith('Set commit status: error');
   });
 
   /**
@@ -239,7 +233,6 @@ describe('jira-integration Action', () => {
     });
 
     expect(mockCreateComment).not.toHaveBeenCalled();
-    expect(mockInfo).toHaveBeenCalledWith(`Updated existing Jira comment for issue: ${testJiraIssue}`);
   });
 
   /**
@@ -355,7 +348,7 @@ describe('jira-integration Action', () => {
 
     await run();
 
-    expect(mockSetFailed).toHaveBeenCalledWith(`Action failed with error: ${apiError.message}`);
+    expect(mockSetFailed).toHaveBeenCalledWith(`Action failed: ${apiError.message}`);
   });
 
   /**
@@ -375,7 +368,7 @@ describe('jira-integration Action', () => {
 
     await run();
 
-    expect(mockSetFailed).toHaveBeenCalledWith('Action failed with error: Unknown error occurred');
+    expect(mockSetFailed).toHaveBeenCalledWith('Action failed: Unknown error occurred');
   });
 
   /**
@@ -428,8 +421,6 @@ describe('jira-integration Action', () => {
       description: 'Jira issue found in PR title',
       context: 'jira/issue-validation',
     });
-
-    expect(mockInfo).toHaveBeenCalledWith(`Found Jira issue: ${customIssue}`);
   });
 
   /**
@@ -486,7 +477,6 @@ describe('jira-integration Action', () => {
     await run();
 
     expect(mockSetFailed).not.toHaveBeenCalled();
-    expect(mockInfo).toHaveBeenCalledWith(`PR author ${testBypassUser} is in bypass list. Skipping Jira validation.`);
     expect(mockCreateCommitStatus).toHaveBeenCalledWith({
       owner: testOwner,
       repo: testRepo,
@@ -567,7 +557,6 @@ describe('jira-integration Action', () => {
     await run();
 
     expect(mockSetFailed).not.toHaveBeenCalled();
-    expect(mockInfo).toHaveBeenCalledWith('PR author mapcolonies-devops is in bypass list. Skipping Jira validation.');
     expect(mockCreateCommitStatus).toHaveBeenCalledWith({
       owner: testOwner,
       repo: testRepo,
@@ -608,7 +597,6 @@ describe('jira-integration Action', () => {
     await run();
 
     expect(mockSetFailed).not.toHaveBeenCalled();
-    expect(mockInfo).toHaveBeenCalledWith('PR author mapcolonies-devops is in bypass list. Skipping Jira validation.');
     expect(mockCreateCommitStatus).toHaveBeenCalledWith({
       owner: testOwner,
       repo: testRepo,

@@ -31,6 +31,78 @@ const SUCCESS_STATE = 'success' as const;
 const ERROR_STATE = 'error' as const;
 
 /**
+ * Interface for action inputs
+ */
+interface ActionInputs {
+  readonly token: string;
+  readonly jiraBaseUrl: string;
+  readonly jiraIssuePattern: string;
+  readonly bypassLabelsInput: string;
+  readonly bypassUsersInput: string;
+}
+
+/**
+ * Type for bypass check result
+ */
+type BypassResult = { bypassed: true; reason: string } | { bypassed: false };
+
+/**
+ * Validates required action inputs
+ * @param token - GitHub token
+ * @param jiraBaseUrl - Jira base URL
+ * @returns True if inputs are valid, false otherwise
+ */
+function validateInputs(token: string | undefined, jiraBaseUrl: string): boolean {
+  const hasToken = token !== undefined && token !== '';
+  if (!hasToken) {
+    core.setFailed('GitHub token is required');
+    return false;
+  }
+
+  const hasJiraBaseUrl = jiraBaseUrl !== '';
+  if (!hasJiraBaseUrl) {
+    core.setFailed('Jira base URL is required');
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Extracts GitHub context information from the pull request event
+ * @param context - GitHub context
+ * @returns GitHubContextInfo or undefined if invalid
+ */
+function extractContextInfo(context: typeof github.context): GitHubContextInfo | undefined {
+  const isPullRequestEvent = context.eventName === 'pull_request';
+  if (!isPullRequestEvent) {
+    core.warning('This action is designed to work with pull request events');
+    return undefined;
+  }
+
+  const hasPullRequestPayload = context.payload.pull_request !== undefined;
+  if (!hasPullRequestPayload) {
+    core.setFailed('Pull request payload not found in context');
+    return undefined;
+  }
+
+  const { owner, repo } = context.repo;
+  const prNumber = context.issue.number;
+  const prTitle = (context.payload.pull_request?.title ?? '') as string;
+  const prSha = (context.payload.pull_request as any)?.head?.sha as string;
+  const prAuthor = (context.payload.pull_request as any)?.user?.login as string | undefined;
+
+  return {
+    owner,
+    repo,
+    prNumber,
+    prTitle,
+    prSha,
+    prAuthor,
+  };
+}
+
+/**
  * Checks if the pull request author is in the bypass list
  * @param prAuthor - The author of the pull request
  * @param bypassUsersInput - Comma-separated string of usernames to bypass
@@ -204,7 +276,6 @@ async function hasBypassLabels(
   const response = await octokit.rest.issues.listLabelsOnIssue({
     owner,
     repo,
-
     issue_number: prNumber,
   });
 
@@ -217,111 +288,153 @@ async function hasBypassLabels(
 }
 
 /**
+ * Checks if Jira validation should be bypassed for this PR
+ * @param octokit - GitHub API client
+ * @param contextInfo - GitHub context information
+ * @param bypassUsersInput - Comma-separated string of usernames to bypass
+ * @param bypassLabelsInput - Comma-separated string of labels to bypass
+ * @returns BypassResult indicating if validation should be bypassed and why
+ */
+async function checkBypass(
+  octokit: ReturnType<typeof github.getOctokit>,
+  contextInfo: GitHubContextInfo,
+  bypassUsersInput: string,
+  bypassLabelsInput: string
+): Promise<BypassResult> {
+  const { prAuthor } = contextInfo;
+
+  // Check if PR author is in bypass list
+  const isPrAuthorBypassed = prAuthor !== undefined && isUserBypassed(prAuthor, bypassUsersInput);
+  if (isPrAuthorBypassed) {
+    return { bypassed: true, reason: `PR author ${prAuthor} is in bypass list` };
+  }
+
+  // Check if PR has bypass labels
+  const bypassLabels = parseBypassLabels(bypassLabelsInput);
+  const prHasBypassLabels = await hasBypassLabels(octokit, contextInfo, bypassLabels);
+  if (prHasBypassLabels) {
+    return { bypassed: true, reason: 'PR has bypass labels' };
+  }
+
+  return { bypassed: false };
+}
+
+/**
+ * Sets commit status to success (bypassed validation)
+ * @param octokit - GitHub API client
+ * @param contextInfo - GitHub context information
+ * @param jiraBaseUrl - Base URL for Jira instance
+ */
+async function setBypassedStatus(octokit: ReturnType<typeof github.getOctokit>, contextInfo: GitHubContextInfo, jiraBaseUrl: string): Promise<void> {
+  await setCommitStatus(octokit, contextInfo, { hasJira: true, jiraIssue: undefined }, jiraBaseUrl);
+}
+
+/**
+ * Processes Jira validation and updates PR accordingly
+ * @param octokit - GitHub API client
+ * @param contextInfo - GitHub context information
+ * @param jiraIssuePattern - Regex pattern for Jira issues
+ * @param jiraBaseUrl - Base URL for Jira instance
+ */
+async function processJiraValidation(
+  octokit: ReturnType<typeof github.getOctokit>,
+  contextInfo: GitHubContextInfo,
+  jiraIssuePattern: string,
+  jiraBaseUrl: string
+): Promise<void> {
+  // Extract Jira issue from PR title
+  const jiraResult = extractJiraIssue(contextInfo.prTitle, jiraIssuePattern);
+
+  const hasJiraIssue = jiraResult.hasJira && jiraResult.jiraIssue !== undefined;
+  if (hasJiraIssue) {
+    core.info(`Found Jira issue: ${jiraResult.jiraIssue as string}`);
+  } else {
+    core.warning('No Jira issue found in PR title');
+  }
+
+  // Set commit status based on Jira validation
+  await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl);
+  core.info(`Set commit status: ${jiraResult.hasJira ? 'success' : 'error'}`);
+
+  // Add or update Jira link comment if issue found
+  if (hasJiraIssue && jiraResult.jiraIssue !== undefined) {
+    await createOrUpdateJiraComment(octokit, contextInfo, jiraResult.jiraIssue, jiraBaseUrl);
+  }
+}
+
+/**
+ * Gets action inputs from environment or GitHub action inputs
+ * @returns Action inputs object
+ */
+function getActionInputs(): ActionInputs {
+  const githubTokenInput = core.getInput('github-token');
+  const envToken = process.env.GITHUB_TOKEN;
+  const patternInput = core.getInput('jira-issue-pattern');
+
+  // Handle nullable inputs explicitly
+  const token = githubTokenInput !== '' ? githubTokenInput : (envToken ?? '');
+  const jiraIssuePattern = patternInput !== '' ? patternInput : 'MAPCO-\\d+';
+
+  return {
+    token,
+    jiraBaseUrl: core.getInput('jira-base-url'),
+    jiraIssuePattern,
+    bypassLabelsInput: core.getInput('bypass-labels'),
+    bypassUsersInput: core.getInput('bypass-users'),
+  };
+}
+
+/**
+ * Handles the main workflow for the action
+ * @param octokit - GitHub API client
+ * @param contextInfo - GitHub context information
+ * @param inputs - Action inputs
+ */
+async function handleWorkflow(octokit: ReturnType<typeof github.getOctokit>, contextInfo: GitHubContextInfo, inputs: ActionInputs): Promise<void> {
+  core.info(`Processing PR #${contextInfo.prNumber}: "${contextInfo.prTitle}"`);
+
+  // Check if validation should be bypassed
+  const bypassResult = await checkBypass(octokit, contextInfo, inputs.bypassUsersInput, inputs.bypassLabelsInput);
+
+  if (bypassResult.bypassed) {
+    core.info(`Bypassing Jira validation: ${bypassResult.reason}`);
+    await setBypassedStatus(octokit, contextInfo, inputs.jiraBaseUrl);
+    return;
+  }
+
+  // Proceed with normal Jira validation
+  await processJiraValidation(octokit, contextInfo, inputs.jiraIssuePattern, inputs.jiraBaseUrl);
+  core.info('Jira integration completed successfully');
+}
+
+/**
  * Main function that executes the GitHub action
  * @returns Promise<void>
  */
 export async function run(): Promise<void> {
   try {
-    // Get inputs from action.yaml
-    const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
-    const jiraBaseUrl = core.getInput('jira-base-url');
-    const jiraIssuePattern = core.getInput('jira-issue-pattern') || 'MAPCO-\\d+';
-    const bypassLabelsInput = core.getInput('bypass-labels');
-    const bypassUsersInput = core.getInput('bypass-users');
+    // Get action inputs
+    const inputs = getActionInputs();
 
     // Validate required inputs
-    const hasToken = token !== undefined && token !== '';
-    if (!hasToken) {
-      core.setFailed('GitHub token is required');
+    const isValidInput = validateInputs(inputs.token, inputs.jiraBaseUrl);
+    if (!isValidInput) {
       return;
     }
 
-    const hasJiraBaseUrl = jiraBaseUrl !== '';
-    if (!hasJiraBaseUrl) {
-      core.setFailed('Jira base URL is required');
+    // Extract context information
+    const contextInfo = extractContextInfo(github.context);
+    if (contextInfo === undefined) {
       return;
     }
 
-    // Get GitHub context
-    const context = github.context;
-    const isPullRequestEvent = context.eventName === 'pull_request';
+    // Initialize GitHub client
+    const octokit = github.getOctokit(inputs.token);
 
-    if (!isPullRequestEvent) {
-      core.warning('This action is designed to work with pull request events');
-      return;
-    }
-
-    // Check if pull request payload exists
-    const hasPullRequestPayload = context.payload.pull_request !== undefined;
-    if (!hasPullRequestPayload) {
-      core.setFailed('Pull request payload not found in context');
-      return;
-    }
-
-    // Extract context information including PR author
-    const { owner, repo } = context.repo;
-    const prNumber = context.issue.number;
-    const prTitle = (context.payload.pull_request?.title ?? '') as string;
-    const prSha = (context.payload.pull_request as any)?.head?.sha as string;
-    const prAuthor = (context.payload.pull_request as any)?.user?.login as string | undefined;
-
-    const contextInfo: GitHubContextInfo = {
-      owner,
-      repo,
-      prNumber,
-      prTitle,
-      prSha,
-      prAuthor,
-    };
-
-    const octokit = github.getOctokit(token);
-
-    core.info(`Processing PR #${contextInfo.prNumber}: "${contextInfo.prTitle}"`);
-
-    // Check if PR author is in bypass list - early return if bypassed
-    const isPrAuthorBypassed = prAuthor !== undefined && isUserBypassed(prAuthor, bypassUsersInput);
-    if (isPrAuthorBypassed) {
-      core.info(`PR author ${prAuthor} is in bypass list. Skipping Jira validation.`);
-      await setCommitStatus(octokit, contextInfo, { hasJira: true, jiraIssue: undefined }, jiraBaseUrl);
-      return;
-    }
-
-    // Parse bypass labels from input
-    const bypassLabels = parseBypassLabels(bypassLabelsInput);
-    core.info(`Parsed bypass labels: ${JSON.stringify(bypassLabels)}`);
-
-    // Check if PR has bypass labels
-    const prHasBypassLabels = await hasBypassLabels(octokit, contextInfo, bypassLabels);
-    if (prHasBypassLabels) {
-      core.info('PR has bypass labels, skipping Jira validation');
-      await setCommitStatus(octokit, contextInfo, { hasJira: true, jiraIssue: undefined }, jiraBaseUrl);
-      return;
-    }
-
-    // Extract Jira issue from PR title
-    const jiraResult = extractJiraIssue(contextInfo.prTitle, jiraIssuePattern);
-
-    const hasJiraIssue = jiraResult.hasJira && jiraResult.jiraIssue !== undefined;
-    if (hasJiraIssue) {
-      core.info(`Found Jira issue: ${jiraResult.jiraIssue}`);
-    } else {
-      core.warning('No Jira issue found in PR title');
-    }
-
-    // Set commit status based on Jira validation
-    await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl);
-    core.info(`Set commit status: ${jiraResult.hasJira ? 'success' : 'error'}`);
-
-    // Add or update Jira link comment if issue found
-    if (hasJiraIssue && jiraResult.jiraIssue !== undefined) {
-      await createOrUpdateJiraComment(octokit, contextInfo, jiraResult.jiraIssue, jiraBaseUrl);
-    }
-
-    core.info('Jira integration completed successfully');
+    // Handle the main workflow
+    await handleWorkflow(octokit, contextInfo, inputs);
   } catch (error) {
-    console.log(error);
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    core.setFailed(`Action failed with error: ${errorMessage}`);
+    core.setFailed(`Action failed: ${errorMessage}`);
   }
 }
