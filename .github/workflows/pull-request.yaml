@@ -24,7 +24,7 @@ jobs:
         run: npm run lint
 
   build-check:
-    name: Check Build Output
+    name: Check that TypeScript is built and dist is up-to-date
     runs-on: ubuntu-latest
 
     strategy:
