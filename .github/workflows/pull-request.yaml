@@ -43,9 +43,12 @@ jobs:
       - name: Build TypeScript project
         run: npm run build
 
+      - name: Add dist to git with intent
+        run: git add --intent-to-add .
+
       - name: Check for uncommitted changes in dist
         run: |
-          git diff --exit-code
+          git diff HEAD --exit-code
           echo 'Build check: TypeScript built and dist is up-to-date.'
           echo 'No uncommitted changes detected in compiled files.'
 
