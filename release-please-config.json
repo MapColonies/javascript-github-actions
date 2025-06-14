@@ -23,15 +23,18 @@
     },
     {
       "section": "🏗️ Build System",
-      "type": "build"
+      "type": "build",
+      "hidden": true
     },
     {
       "section": "🤖 Continuous Integration",
-      "type": "ci"
+      "type": "ci",
+      "hidden": true
     },
     {
       "section": "🔧 Miscellaneous Chores",
-      "type": "chore"
+      "type": "chore",
+      "hidden": true
     },
     {
       "section": "⏪ Reverts",
@@ -39,15 +42,18 @@
     },
     {
       "section": "✅ Tests",
-      "type": "test"
+      "type": "test",
+      "hidden": true
     },
     {
       "section": "💄 Style",
-      "type": "style"
+      "type": "style",
+      "hidden": true
     },
     {
       "section": "♻️ Code Refactoring",
-      "type": "refactor"
+      "type": "refactor",
+      "hidden": true
     }
   ],
   "draft-pull-request": false,

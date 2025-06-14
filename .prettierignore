@@ -1,7 +1,6 @@
 dist
 CHANGELOG.md
 package-lock.json
-README.md
 node_modules
 *.html
 coverage

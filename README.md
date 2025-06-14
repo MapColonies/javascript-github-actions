@@ -1,4 +1,5 @@
 # JavaScript Github Actions
+
 This repository contains a collection of JavaScript-based GitHub Actions that can be used in your workflows. Each action is designed to perform a specific task and can be easily integrated into your CI/CD pipelines.
 
 ## Actions
@@ -14,6 +15,7 @@ npm run create-action
 ```
 
 The script will:
+
 - Prompt for action name (lowercase, kebab-case)
 - Prompt for action description
 - Create action directory under `./actions/`
@@ -21,4 +23,3 @@ The script will:
 - Generate action README with usage examples
 - Update release configuration files
 - Add entry to this README
-

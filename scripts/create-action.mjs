@@ -183,17 +183,8 @@ with:
 
 <!-- Add your action outputs here -->
 
-## Example
-
-\`\`\`yaml
-name: Example workflow
-on: [push]
-jobs:
-  example:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: mapcolonies/javascript-github-actions/actions/${actionName}@v1
+## Required Permissions
+<!-- Add required permissions for the action here -->
 \`\`\`
 `;
 
