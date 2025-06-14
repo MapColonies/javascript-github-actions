@@ -11,6 +11,19 @@ interface JiraCheckResult {
 }
 
 /**
+ * Interface for GitHub pull request payload structure
+ */
+interface PullRequestPayload {
+  readonly title: string;
+  readonly head: {
+    readonly sha: string;
+  };
+  readonly user: {
+    readonly login: string;
+  } | null;
+}
+
+/**
  * Interface for GitHub context information
  */
 interface GitHubContextInfo {
@@ -88,9 +101,10 @@ function extractContextInfo(context: typeof github.context): GitHubContextInfo |
 
   const { owner, repo } = context.repo;
   const prNumber = context.issue.number;
-  const prTitle = (context.payload.pull_request?.title ?? '') as string;
-  const prSha = (context.payload.pull_request as any)?.head?.sha as string;
-  const prAuthor = (context.payload.pull_request as any)?.user?.login as string | undefined;
+  const pullRequest = context.payload.pull_request as unknown as PullRequestPayload;
+  const prTitle = pullRequest.title;
+  const prSha = pullRequest.head.sha;
+  const prAuthor = pullRequest.user?.login;
 
   return {
     owner,
