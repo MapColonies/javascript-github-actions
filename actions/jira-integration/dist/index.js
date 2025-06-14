@@ -23935,9 +23935,21 @@ function extractJiraIssue(title, pattern) {
   }
   return { hasJira: false };
 }
-async function setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl) {
+async function setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl, bypassResult) {
   const { owner, repo, prSha } = contextInfo;
   const { hasJira, jiraIssue } = jiraResult;
+  if (bypassResult.bypassed) {
+    await octokit.rest.repos.createCommitStatus({
+      owner,
+      repo,
+      sha: prSha,
+      state: SUCCESS_STATE,
+      target_url: void 0,
+      description: bypassResult.reason,
+      context: JIRA_STATUS_CONTEXT
+    });
+    return;
+  }
   const statusState = hasJira ? SUCCESS_STATE : ERROR_STATE;
   const statusDescription = hasJira ? "Jira issue found in PR title" : "Jira issue required in PR title (format: MAPCO-1234)";
   const targetUrl = hasJira && jiraIssue !== void 0 ? `${jiraBaseUrl}/browse/${jiraIssue}` : void 0;
@@ -24013,17 +24025,17 @@ async function checkBypass(octokit, contextInfo, bypassUsersInput, bypassLabelsI
   const { prAuthor } = contextInfo;
   const isPrAuthorBypassed = prAuthor !== void 0 && isUserBypassed(prAuthor, bypassUsersInput);
   if (isPrAuthorBypassed) {
-    return { bypassed: true, reason: `PR author ${prAuthor} is in bypass list` };
+    return { bypassed: true, reason: "Bypassed validation for user" };
   }
   const bypassLabels = parseBypassLabels(bypassLabelsInput);
   const prHasBypassLabels = await hasBypassLabels(octokit, contextInfo, bypassLabels);
   if (prHasBypassLabels) {
-    return { bypassed: true, reason: "PR has bypass labels" };
+    return { bypassed: true, reason: "Bypassed validation due to label" };
   }
   return { bypassed: false };
 }
-async function setBypassedStatus(octokit, contextInfo, jiraBaseUrl) {
-  await setCommitStatus(octokit, contextInfo, { hasJira: true, jiraIssue: void 0 }, jiraBaseUrl);
+async function setBypassedStatus(octokit, contextInfo, jiraBaseUrl, bypassResult) {
+  await setCommitStatus(octokit, contextInfo, { hasJira: false, jiraIssue: void 0 }, jiraBaseUrl, bypassResult);
 }
 async function processJiraValidation(octokit, contextInfo, jiraIssuePattern, jiraBaseUrl) {
   const jiraResult = extractJiraIssue(contextInfo.prTitle, jiraIssuePattern);
@@ -24033,7 +24045,7 @@ async function processJiraValidation(octokit, contextInfo, jiraIssuePattern, jir
   } else {
     (0, import_core.warning)("No Jira issue found in PR title");
   }
-  await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl);
+  await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl, { bypassed: false });
   (0, import_core.info)(`Set commit status: ${jiraResult.hasJira ? "success" : "error"}`);
   if (hasJiraIssue && jiraResult.jiraIssue !== void 0) {
     await createOrUpdateJiraComment(octokit, contextInfo, jiraResult.jiraIssue, jiraBaseUrl);
@@ -24058,7 +24070,7 @@ async function handleWorkflow(octokit, contextInfo, inputs) {
   const bypassResult = await checkBypass(octokit, contextInfo, inputs.bypassUsersInput, inputs.bypassLabelsInput);
   if (bypassResult.bypassed) {
     (0, import_core.info)(`Bypassing Jira validation: ${bypassResult.reason}`);
-    await setBypassedStatus(octokit, contextInfo, inputs.jiraBaseUrl);
+    await setBypassedStatus(octokit, contextInfo, inputs.jiraBaseUrl, bypassResult);
     return;
   }
   await processJiraValidation(octokit, contextInfo, inputs.jiraIssuePattern, inputs.jiraBaseUrl);
