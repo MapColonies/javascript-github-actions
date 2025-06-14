@@ -19,3 +19,6 @@ inputs:
     description: 'Regex pattern for Jira issue IDs'
     required: false
     default: 'MAPCO-[0-9]+'
+  bypass-labels:
+    description: 'Comma-separated list of labels that bypass Jira validation'
+    required: false

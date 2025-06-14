@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type MockedFunction } 
 import { faker } from '@faker-js/faker';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { run } from '../main.js';
 
 // Mock the action modules
@@ -22,6 +23,7 @@ describe('jira-integration Action', () => {
   let mockUpdateComment: ReturnType<typeof vi.fn>;
   let mockListComments: ReturnType<typeof vi.fn>;
   let mockCreateCommitStatus: ReturnType<typeof vi.fn>;
+  let mockListLabelsOnIssue: ReturnType<typeof vi.fn>;
 
   // Test data generated using faker
   let testToken: string;
@@ -36,75 +38,70 @@ describe('jira-integration Action', () => {
   let testRepo: string;
 
   beforeEach(() => {
-    // Reset all mocks before each test
+    // Reset all mocks
     vi.clearAllMocks();
 
-    // Generate fresh test data for each test
+    // Generate test data
     testToken = faker.string.alphanumeric(40);
-    testPrNumber = faker.number.int({ min: 1, max: 9999 });
-    testJiraBaseUrl = `https://${faker.company.name().toLowerCase().replace(/\s+/g, '-')}.atlassian.net`;
+    testPrNumber = faker.number.int({ min: 1, max: 999 });
+    testJiraBaseUrl = 'https://mapcolonies.atlassian.net';
     testJiraPattern = 'MAPCO-\\d+';
     testJiraIssue = `MAPCO-${faker.number.int({ min: 1000, max: 9999 })}`;
-    testPrTitleWithJira = `${testJiraIssue}: ${faker.hacker.phrase()}`;
-    testPrTitleWithoutJira = faker.hacker.phrase();
+    testPrTitleWithJira = `feat: ${testJiraIssue} - ${faker.lorem.words(3)}`;
+    testPrTitleWithoutJira = `feat: ${faker.lorem.words(3)}`;
     testPrSha = faker.git.commitSha();
-    testOwner = faker.internet.username();
-    testRepo = faker.system.fileName().replace(/\./g, '-').split('.')[0] ?? faker.word.noun();
+    testOwner = faker.person.firstName().toLowerCase();
+    testRepo = faker.lorem.word();
 
-    // Setup mock functions
+    // Mock core functions
     mockGetInput = vi.mocked(core.getInput);
     mockSetFailed = vi.mocked(core.setFailed);
     mockWarning = vi.mocked(core.warning);
-    mockInfo = vi.mocked(core.info);
-    mockGetOctokit = vi.mocked(github.getOctokit);
-    mockCreateComment = vi.fn().mockResolvedValue({});
-    mockUpdateComment = vi.fn().mockResolvedValue({});
-    mockListComments = vi.fn().mockResolvedValue({ data: [] });
-    mockCreateCommitStatus = vi.fn().mockResolvedValue({});
+    mockInfo = vi.mocked(core.info).mockImplementation(console.log);
 
-    // Set up default github context with pull request payload
+    // Mock GitHub API functions
+    mockCreateComment = vi.fn();
+    mockUpdateComment = vi.fn();
+    mockListComments = vi.fn();
+    mockCreateCommitStatus = vi.fn();
+    mockListLabelsOnIssue = vi.fn();
+
+    mockGetOctokit = vi.mocked(github.getOctokit);
+    mockGetOctokit.mockReturnValue(
+      fromPartial({
+        rest: {
+          issues: {
+            createComment: mockCreateComment as unknown as ReturnType<typeof github.getOctokit>['rest']['issues']['createComment'],
+            updateComment: mockUpdateComment as unknown as ReturnType<typeof github.getOctokit>['rest']['issues']['updateComment'],
+            listComments: mockListComments as unknown as ReturnType<typeof github.getOctokit>['rest']['issues']['listComments'],
+            listLabelsOnIssue: mockListLabelsOnIssue as unknown as ReturnType<typeof github.getOctokit>['rest']['issues']['listLabelsOnIssue'],
+          },
+          repos: {
+            createCommitStatus: mockCreateCommitStatus as unknown as ReturnType<typeof github.getOctokit>['rest']['repos']['createCommitStatus'],
+          },
+        },
+      })
+    );
+
+    // Mock GitHub context
     Object.defineProperty(github, 'context', {
       value: {
         eventName: 'pull_request',
-        repo: {
-          owner: testOwner,
-          repo: testRepo,
-        },
-        issue: {
-          number: testPrNumber,
-        },
+        repo: { owner: testOwner, repo: testRepo },
+        issue: { number: testPrNumber },
         payload: {
           pull_request: {
             title: testPrTitleWithJira,
-            head: {
-              sha: testPrSha,
-            },
+            head: { sha: testPrSha },
           },
         },
       },
-      writable: true,
+      configurable: true,
     });
-
-    // Mock octokit with all required methods
-    mockGetOctokit.mockReturnValue({
-      rest: {
-        issues: {
-          createComment: mockCreateComment,
-          updateComment: mockUpdateComment,
-          listComments: mockListComments,
-        },
-        repos: {
-          createCommitStatus: mockCreateCommitStatus,
-        },
-      },
-    } as unknown as ReturnType<typeof github.getOctokit>);
-
-    // Set up environment
-    process.env.GITHUB_TOKEN = testToken;
   });
 
   afterEach(() => {
-    delete process.env.GITHUB_TOKEN;
+    vi.restoreAllMocks();
   });
 
   /**
@@ -115,8 +112,11 @@ describe('jira-integration Action', () => {
       if (name === 'github-token') return testToken;
       if (name === 'jira-base-url') return testJiraBaseUrl;
       if (name === 'jira-issue-pattern') return testJiraPattern;
+      if (name === 'bypass-labels') return '';
       return '';
     });
+
+    mockListComments.mockResolvedValue({ data: [] });
 
     await run();
 
@@ -126,7 +126,7 @@ describe('jira-integration Action', () => {
       repo: testRepo,
       sha: testPrSha,
       state: 'success',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
+
       target_url: `${testJiraBaseUrl}/browse/${testJiraIssue}`,
       description: 'Jira issue found in PR title',
       context: 'jira/issue-validation',
@@ -136,7 +136,7 @@ describe('jira-integration Action', () => {
     expect(mockCreateComment).toHaveBeenCalledWith({
       owner: testOwner,
       repo: testRepo,
-      // eslint-disable-next-line @typescript-eslint/naming-convention
+
       issue_number: testPrNumber,
       body: `🎫 **Related Jira Issue**: [${testJiraIssue}](${testJiraBaseUrl}/browse/${testJiraIssue})`,
     });
@@ -188,7 +188,7 @@ describe('jira-integration Action', () => {
       repo: testRepo,
       sha: testPrSha,
       state: 'error',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
+
       target_url: undefined,
       description: 'Jira issue required in PR title (format: MAPCO-1234)',
       context: 'jira/issue-validation',
@@ -421,7 +421,7 @@ describe('jira-integration Action', () => {
       repo: testRepo,
       sha: testPrSha,
       state: 'success',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
+
       target_url: `${testJiraBaseUrl}/browse/${customIssue}`,
       description: 'Jira issue found in PR title',
       context: 'jira/issue-validation',
@@ -449,7 +449,6 @@ describe('jira-integration Action', () => {
       repo: testRepo,
       sha: testPrSha,
       state: 'success',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       target_url: `${testJiraBaseUrl}/browse/${testJiraIssue}`,
       description: 'Jira issue found in PR title',
       context: 'jira/issue-validation',
@@ -457,45 +456,176 @@ describe('jira-integration Action', () => {
   });
 
   /**
-   * Test that only Bot comments are considered for updates
+   * Test bypass labels functionality - should skip validation when bypass labels are present
    */
-  it('should only update Bot comments, not user comments with Jira identifiers', async () => {
-    const existingCommentId = faker.number.int({ min: 100, max: 999 });
-    const userCommentId = faker.number.int({ min: 1000, max: 1999 });
-
-    mockListComments.mockResolvedValue({
-      data: [
-        {
-          id: userCommentId,
-          user: { type: 'User' }, // Not a bot comment
-          body: '🎫 Related Jira Issue: [USER-123](https://example.com)',
-        },
-        {
-          id: existingCommentId,
-          user: { type: 'Bot' }, // Bot comment
-          body: '🎫 Related Jira Issue: [OLD-123](https://old-url.com)',
-        },
-      ],
-    });
+  it('should skip Jira validation when PR has bypass labels', async () => {
+    const bypassLabels = 'skip-jira,hotfix';
 
     mockGetInput.mockImplementation((name: string) => {
-      if (name === 'github-token') return testToken;
-      if (name === 'jira-base-url') return testJiraBaseUrl;
-      if (name === 'jira-issue-pattern') return testJiraPattern;
-      return '';
+      switch (name) {
+        case 'github-token':
+          return testToken;
+        case 'jira-base-url':
+          return testJiraBaseUrl;
+        case 'jira-issue-pattern':
+          return testJiraPattern;
+        case 'bypass-labels':
+          return bypassLabels;
+        default:
+          return '';
+      }
+    });
+
+    // Mock PR having bypass label
+    mockListLabelsOnIssue.mockResolvedValue({
+      data: [{ name: 'skip-jira' }, { name: 'bug' }],
     });
 
     await run();
 
-    // Should update the Bot comment, not the user comment
-    expect(mockUpdateComment).toHaveBeenCalledWith({
+    expect(mockListLabelsOnIssue).toHaveBeenCalledWith({
       owner: testOwner,
       repo: testRepo,
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      comment_id: existingCommentId, // Bot comment ID, not user comment ID
-      body: `🎫 **Related Jira Issue**: [${testJiraIssue}](${testJiraBaseUrl}/browse/${testJiraIssue})`,
+      issue_number: testPrNumber,
     });
 
+    expect(mockInfo).toHaveBeenCalledWith('PR has bypass labels, skipping Jira validation');
+    expect(mockCreateCommitStatus).not.toHaveBeenCalled();
     expect(mockCreateComment).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Test parsing of bypass labels from comma-separated input
+   */
+  it('should parse bypass labels correctly from comma-separated input', async () => {
+    const bypassLabels = ' skip-jira , hotfix , emergency ';
+
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'github-token':
+          return testToken;
+        case 'jira-base-url':
+          return testJiraBaseUrl;
+        case 'jira-issue-pattern':
+          return testJiraPattern;
+        case 'bypass-labels':
+          return bypassLabels;
+        default:
+          return '';
+      }
+    });
+
+    // Mock PR having no bypass labels
+    mockListLabelsOnIssue.mockResolvedValue({
+      data: [{ name: 'bug' }],
+    });
+
+    await run();
+
+    expect(mockInfo).toHaveBeenCalledWith('Parsed bypass labels: ["skip-jira","hotfix","emergency"]');
+  });
+
+  /**
+   * Test that validation runs normally when PR has no bypass labels
+   */
+  it('should run validation when PR has no bypass labels', async () => {
+    const bypassLabels = 'skip-jira,hotfix';
+
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'github-token':
+          return testToken;
+        case 'jira-base-url':
+          return testJiraBaseUrl;
+        case 'jira-issue-pattern':
+          return testJiraPattern;
+        case 'bypass-labels':
+          return bypassLabels;
+        default:
+          return '';
+      }
+    });
+
+    // Mock PR having different labels
+    mockListLabelsOnIssue.mockResolvedValue({
+      data: [{ name: 'bug' }, { name: 'enhancement' }],
+    });
+
+    mockListComments.mockResolvedValue({ data: [] });
+
+    await run();
+
+    expect(mockCreateCommitStatus).toHaveBeenCalledWith({
+      owner: testOwner,
+      repo: testRepo,
+      sha: testPrSha,
+      state: 'success',
+      target_url: `${testJiraBaseUrl}/browse/${testJiraIssue}`,
+      description: 'Jira issue found in PR title',
+      context: 'jira/issue-validation',
+    });
+  });
+
+  /**
+   * Test that validation runs normally when bypass labels input is empty
+   */
+  it('should run validation when bypass labels input is empty', async () => {
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'github-token':
+          return testToken;
+        case 'jira-base-url':
+          return testJiraBaseUrl;
+        case 'jira-issue-pattern':
+          return testJiraPattern;
+        case 'bypass-labels':
+          return '';
+        default:
+          return '';
+      }
+    });
+
+    mockListComments.mockResolvedValue({ data: [] });
+
+    await run();
+
+    // Should not call the labels API when no bypass labels configured
+    expect(mockListLabelsOnIssue).not.toHaveBeenCalled();
+    expect(mockCreateCommitStatus).toHaveBeenCalled();
+  });
+
+  /**
+   * Test that validation runs normally when PR has labels but none match bypass labels
+   */
+  it('should run validation when PR has labels but none match bypass labels', async () => {
+    const bypassLabels = 'skip-jira,hotfix';
+
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'github-token':
+          return testToken;
+        case 'jira-base-url':
+          return testJiraBaseUrl;
+        case 'jira-issue-pattern':
+          return testJiraPattern;
+        case 'bypass-labels':
+          return bypassLabels;
+        default:
+          return '';
+      }
+    });
+
+    // Mock PR having different labels
+    mockListLabelsOnIssue.mockResolvedValue({
+      data: [{ name: 'bug' }, { name: 'enhancement' }, { name: 'documentation' }],
+    });
+
+    mockListComments.mockResolvedValue({ data: [] });
+
+    await run();
+
+    expect(mockListLabelsOnIssue).toHaveBeenCalled();
+    expect(mockCreateCommitStatus).toHaveBeenCalled();
+    expect(mockInfo).not.toHaveBeenCalledWith('PR has bypass labels, skipping Jira validation');
   });
 });

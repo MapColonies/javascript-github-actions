@@ -76,7 +76,7 @@ async function setCommitStatus(
     repo,
     sha: prSha,
     state: statusState,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
+
     target_url: targetUrl,
     description: statusDescription,
     context: JIRA_STATUS_CONTEXT,
@@ -95,7 +95,7 @@ async function findExistingJiraComment(octokit: ReturnType<typeof github.getOcto
   const comments = await octokit.rest.issues.listComments({
     owner,
     repo,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
+
     issue_number: prNumber,
   });
 
@@ -142,7 +142,7 @@ async function createOrUpdateJiraComment(
     await octokit.rest.issues.createComment({
       owner,
       repo,
-      // eslint-disable-next-line @typescript-eslint/naming-convention
+
       issue_number: prNumber,
       body: commentBody,
     });
@@ -172,6 +172,57 @@ function extractGitHubContext(context: typeof github.context): GitHubContextInfo
 }
 
 /**
+ * Parses comma-separated bypass labels from input
+ * @param bypassLabelsInput - Comma-separated string of bypass labels
+ * @returns Array of trimmed bypass labels
+ */
+function parseBypassLabels(bypassLabelsInput: string): readonly string[] {
+  if (bypassLabelsInput === '') {
+    return [];
+  }
+
+  return bypassLabelsInput
+    .split(',')
+    .map((label) => label.trim())
+    .filter((label) => label !== '');
+}
+
+/**
+ * Checks if PR has any bypass labels that would skip Jira validation
+ * @param octokit - GitHub API client
+ * @param contextInfo - GitHub context information
+ * @param bypassLabels - Array of bypass label names
+ * @returns True if PR has any bypass labels
+ */
+async function hasBypassLabels(
+  octokit: ReturnType<typeof github.getOctokit>,
+  contextInfo: GitHubContextInfo,
+  bypassLabels: readonly string[]
+): Promise<boolean> {
+  // Early return if no bypass labels configured
+  if (bypassLabels.length === 0) {
+    return false;
+  }
+
+  const { owner, repo, prNumber } = contextInfo;
+
+  // Fetch PR labels from GitHub API
+  const response = await octokit.rest.issues.listLabelsOnIssue({
+    owner,
+    repo,
+
+    issue_number: prNumber,
+  });
+
+  const prLabels = response.data.map((label) => label.name);
+
+  // Check if any PR label matches bypass labels
+  const hasBypassLabel = bypassLabels.some((bypassLabel) => prLabels.includes(bypassLabel));
+
+  return hasBypassLabel;
+}
+
+/**
  * Main function that executes the GitHub action
  * @returns Promise<void>
  */
@@ -181,6 +232,7 @@ export async function run(): Promise<void> {
     const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
     const jiraBaseUrl = core.getInput('jira-base-url');
     const jiraIssuePattern = core.getInput('jira-issue-pattern') || 'MAPCO-\\d+';
+    const bypassLabelsInput = core.getInput('bypass-labels');
 
     // Validate required inputs
     const hasToken = token !== undefined && token !== '';
@@ -227,6 +279,17 @@ export async function run(): Promise<void> {
       core.warning('No Jira issue found in PR title');
     }
 
+    // Parse bypass labels from input
+    const bypassLabels = parseBypassLabels(bypassLabelsInput);
+    core.info(`Parsed bypass labels: ${JSON.stringify(bypassLabels)}`);
+
+    // Check if PR has bypass labels
+    const prHasBypassLabels = await hasBypassLabels(octokit, contextInfo, bypassLabels);
+    if (prHasBypassLabels) {
+      core.info('PR has bypass labels, skipping Jira validation');
+      return;
+    }
+
     // Set commit status based on Jira validation
     await setCommitStatus(octokit, contextInfo, jiraResult, jiraBaseUrl);
     core.info(`Set commit status: ${jiraResult.hasJira ? 'success' : 'error'}`);
@@ -238,6 +301,8 @@ export async function run(): Promise<void> {
 
     core.info('Jira integration completed successfully');
   } catch (error) {
+    console.log(error);
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     core.setFailed(`Action failed with error: ${errorMessage}`);
   }

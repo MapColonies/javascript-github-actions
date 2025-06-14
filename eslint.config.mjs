@@ -6,7 +6,7 @@ const AllowedGithubLiterals = {
   format: null,
   filter: {
     match: true,
-    regex: '^(pull_request)$',
+    regex: '^(pull_request|issue_number|target_url)$',
   },
 };
 
