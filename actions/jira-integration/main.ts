@@ -180,12 +180,18 @@ export async function run(): Promise<void> {
     // Get inputs from action.yaml
     const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
     const jiraBaseUrl = core.getInput('jira-base-url');
-    const jiraIssuePattern = core.getInput('jira-issue-pattern');
+    const jiraIssuePattern = core.getInput('jira-issue-pattern') || 'MAPCO-\\d+';
 
     // Validate required inputs
     const hasToken = token !== undefined && token !== '';
     if (!hasToken) {
       core.setFailed('GitHub token is required');
+      return;
+    }
+
+    const hasJiraBaseUrl = jiraBaseUrl !== undefined && jiraBaseUrl !== '';
+    if (!hasJiraBaseUrl) {
+      core.setFailed('Jira base URL is required');
       return;
     }
 

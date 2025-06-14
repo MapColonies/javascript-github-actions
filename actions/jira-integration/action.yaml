@@ -1,15 +1,16 @@
-name: 'jira-pull-request-integration'
+name: 'jira-integration'
 description: 'Helps connecting pull requests to jira including comments on the
   pull request and title validation'
 
 runs:
   using: 'node20'
-  main: 'dist/jira-pull-request-integration/index.js'
+  main: 'dist/index.js'
 
 inputs:
   github-token:
     description: 'GitHub token for API access'
-    required: true
+    required: false
+    default: ${{ github.token }}
   jira-base-url:
     description: 'Base URL for Jira instance'
     required: false

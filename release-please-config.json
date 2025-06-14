@@ -60,8 +60,8 @@
   "include-v-in-tag": true,
   "separate-pull-requests": true,
   "packages": {
-    "actions/jira-pull-request-integration": {
-      "package-name": "jira-pull-request-integration",
+    "actions/jira-integration": {
+      "package-name": "jira-integration",
       "release-type": "simple",
       "extra-files": ["README.md"]
     }
