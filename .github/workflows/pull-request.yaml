@@ -1,0 +1,73 @@
+name: pull_request
+
+on: [pull_request, workflow_dispatch]
+
+jobs:
+  eslint:
+    name: Run TS Project eslint
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node: [20.x]
+
+    steps:
+      - name: Check out TS Project Git repository
+        uses: actions/checkout@v4
+
+      - name: Init nodejs
+        uses: MapColonies/shared-workflows/actions/init-npm@init-npm-v1.0.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Run TS Project linters
+        run: npm run lint
+
+  build-check:
+    name: Check Build Output
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node: [20.x]
+
+    steps:
+      - name: Check out TS Project Git repository
+        uses: actions/checkout@v4
+
+      - name: Init nodejs
+        uses: MapColonies/shared-workflows/actions/init-npm@init-npm-v1.0.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Build TypeScript project
+        run: npm run build
+
+      - name: Check for uncommitted changes in dist
+        run: |
+          git diff --exit-code
+          echo 'Build check: TypeScript built and dist is up-to-date.'
+          echo 'No uncommitted changes detected in compiled files.'
+
+  tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node: [20.x]
+
+    steps:
+      - name: Check out TS Project Git repository
+        uses: actions/checkout@v4
+
+      - name: Init nodejs
+        uses: MapColonies/shared-workflows/actions/init-npm@init-npm-v1.0.0
+
+      - name: Run tests
+        run: npm run test
+      - name: 'Report Coverage'
+        # Set if: always() to also generate the report if tests are failing
+        # Only works if you set `reportOnFailure: true` in your vite config as specified above
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@v2
