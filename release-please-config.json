@@ -59,5 +59,11 @@
   "draft-pull-request": false,
   "include-v-in-tag": true,
   "separate-pull-requests": true,
-  "packages": {}
+  "packages": {
+    "actions/jira-integration": {
+      "package-name": "jira-integration",
+      "release-type": "simple",
+      "extra-files": ["README.md"]
+    }
+  }
 }

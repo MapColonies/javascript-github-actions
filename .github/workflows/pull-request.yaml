@@ -24,7 +24,7 @@ jobs:
         run: npm run lint
 
   build-check:
-    name: Check Build Output
+    name: Check that TypeScript is built and dist is up-to-date
     runs-on: ubuntu-latest
 
     strategy:
@@ -43,9 +43,16 @@ jobs:
       - name: Build TypeScript project
         run: npm run build
 
+      - name: Add dist to git with intent
+        run: git add --intent-to-add .
+
       - name: Check for uncommitted changes in dist
         run: |
-          git diff --exit-code
+          git diff HEAD --exit-code --name-only || {
+            echo 'Uncommitted changes detected in compiled files.'
+            echo 'Please commit the changes to the dist directory.'
+            exit 1
+          } 
           echo 'Build check: TypeScript built and dist is up-to-date.'
           echo 'No uncommitted changes detected in compiled files.'
 
