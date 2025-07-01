@@ -232,7 +232,7 @@ describe('jira-integration Action', () => {
         {
           id: existingCommentId,
           user: { login: 'github-actions[bot]' },
-          body: `🎫 Related Jira Issue: [${oldJiraIssue}](${oldJiraUrl}/browse/${oldJiraIssue})`,
+          body: `🎫 **Related Jira Issue**: [${oldJiraIssue}](${oldJiraUrl}/browse/${oldJiraIssue})`,
         },
       ],
     });
