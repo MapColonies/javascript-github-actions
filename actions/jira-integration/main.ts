@@ -39,7 +39,7 @@ interface GitHubContextInfo {
  * Constants for the action
  */
 const JIRA_STATUS_CONTEXT = 'jira/issue-validation' as const;
-const JIRA_COMMENT_IDENTIFIER = '🎫 Related Jira Issue' as const;
+const JIRA_COMMENT_IDENTIFIER = '🎫 **Related Jira Issue**:' as const;
 const SUCCESS_STATE = 'success' as const;
 const ERROR_STATE = 'error' as const;
 
@@ -213,14 +213,13 @@ async function findExistingJiraComment(octokit: ReturnType<typeof getOctokit>, c
   const comments = await octokit.rest.issues.listComments({
     owner,
     repo,
-
     issue_number: prNumber,
   });
 
   const existingComment = comments.data.find((comment) => {
-    const isBotUser = comment.user?.type === 'Bot';
+    const isGitHubActionsBot = comment.user?.login === 'github-actions[bot]';
     const hasJiraIdentifier = comment.body?.includes(JIRA_COMMENT_IDENTIFIER) === true;
-    return isBotUser && hasJiraIdentifier;
+    return isGitHubActionsBot && hasJiraIdentifier;
   });
 
   return existingComment?.id;

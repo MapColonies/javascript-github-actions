@@ -23874,7 +23874,7 @@ var require_github = __commonJS({
 var import_core = __toESM(require_core());
 var import_github = __toESM(require_github());
 var JIRA_STATUS_CONTEXT = "jira/issue-validation";
-var JIRA_COMMENT_IDENTIFIER = "\u{1F3AB} Related Jira Issue";
+var JIRA_COMMENT_IDENTIFIER = "\u{1F3AB} **Related Jira Issue**:";
 var SUCCESS_STATE = "success";
 var ERROR_STATE = "error";
 function validateInputs(token, jiraBaseUrl) {
@@ -23971,9 +23971,9 @@ async function findExistingJiraComment(octokit, contextInfo) {
     issue_number: prNumber
   });
   const existingComment = comments.data.find((comment) => {
-    const isBotUser = comment.user?.type === "Bot";
+    const isGitHubActionsBot = comment.user?.login === "github-actions[bot]";
     const hasJiraIdentifier = comment.body?.includes(JIRA_COMMENT_IDENTIFIER) === true;
-    return isBotUser && hasJiraIdentifier;
+    return isGitHubActionsBot && hasJiraIdentifier;
   });
   return existingComment?.id;
 }
