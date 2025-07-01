@@ -218,9 +218,9 @@ async function findExistingJiraComment(octokit: ReturnType<typeof getOctokit>, c
   });
 
   const existingComment = comments.data.find((comment) => {
-    const isBotUser = comment.user?.type === 'Bot';
+    const isGitHubActionsBot = comment.user?.login === 'github-actions[bot]';
     const hasJiraIdentifier = comment.body?.includes(JIRA_COMMENT_IDENTIFIER) === true;
-    return isBotUser && hasJiraIdentifier;
+    return isGitHubActionsBot && hasJiraIdentifier;
   });
 
   return existingComment?.id;

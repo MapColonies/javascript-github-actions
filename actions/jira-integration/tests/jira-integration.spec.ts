@@ -231,7 +231,7 @@ describe('jira-integration Action', () => {
       data: [
         {
           id: existingCommentId,
-          user: { type: 'Bot' },
+          user: { login: 'github-actions[bot]' },
           body: `🎫 Related Jira Issue: [${oldJiraIssue}](${oldJiraUrl}/browse/${oldJiraIssue})`,
         },
       ],
