@@ -16,7 +16,7 @@ Keep your PRs connected to Jira issues! This action validates that your pull req
 name: Jira Integration
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, edited]
 
 permissions:
   statuses: write
