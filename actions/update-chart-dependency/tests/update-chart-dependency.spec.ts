@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { run, updateDependencyVersion, getFileSha } from '../main.js';
+import { run, getFileSha, updateChartYamlDependency, updateHelmfileReleaseVersion } from '../main.js';
 
 vi.mock('@actions/core');
 vi.mock('@actions/github');
@@ -56,6 +56,64 @@ const setupGitHubContext = () => {
 };
 
 describe('update-chart-dependency Action', () => {
+  describe('updateChartYamlDependency', () => {
+    it('should update dependency version in Chart.yaml', () => {
+      const yamlContent = [
+        'apiVersion: v2',
+        'name: chart1',
+        'version: 1.0.0',
+        'dependencies:',
+        '  - name: test-service',
+        '    version: 0.0.1',
+        '    repository: "https://example.com/charts"',
+        '',
+      ].join('\n');
+      vi.spyOn(fs, 'readFileSync').mockReturnValue(yamlContent);
+      const result = updateChartYamlDependency('/fake/path/Chart.yaml', 'test-service', '1.2.3');
+      expect(result.updated).toBe(true);
+      expect(result.oldVersion).toBe('0.0.1');
+      expect(result.newVersion).toBe('1.2.3');
+      expect(result.newContent).toContain('version: 1.2.3');
+    });
+
+    it('should not update if dependency version matches', () => {
+      const yamlContent = ['dependencies:', '  - name: test-service', '    version: 1.2.3'].join('\n');
+      vi.spyOn(fs, 'readFileSync').mockReturnValue(yamlContent);
+      const result = updateChartYamlDependency('/fake/path/Chart.yaml', 'test-service', '1.2.3');
+      expect(result.updated).toBe(false);
+    });
+
+    it('should return updated: false for invalid YAML', () => {
+      vi.spyOn(fs, 'readFileSync').mockReturnValue('invalid: : yaml');
+      const result = updateChartYamlDependency('/fake/path/Chart.yaml', 'test-service', '1.2.3');
+      expect(result.updated).toBe(false);
+    });
+  });
+
+  describe('updateHelmfileReleaseVersion', () => {
+    it('should update release version in helmfile.yaml', () => {
+      const yamlContent = ['releases:', '  - name: test-service', '    version: 0.0.1', '    chart: "repo/chart"', ''].join('\n');
+      vi.spyOn(fs, 'readFileSync').mockReturnValue(yamlContent);
+      const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'test-service', '2.0.0');
+      expect(result.updated).toBe(true);
+      expect(result.oldVersion).toBe('0.0.1');
+      expect(result.newVersion).toBe('2.0.0');
+      expect(result.newContent).toContain('version: 2.0.0');
+    });
+
+    it('should not update if release version matches', () => {
+      const yamlContent = ['releases:', '  - name: test-service', '    version: 2.0.0'].join('\n');
+      vi.spyOn(fs, 'readFileSync').mockReturnValue(yamlContent);
+      const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'test-service', '2.0.0');
+      expect(result.updated).toBe(false);
+    });
+
+    it('should return updated: false for invalid YAML', () => {
+      vi.spyOn(fs, 'readFileSync').mockReturnValue('bad: : yaml');
+      const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'test-service', '2.0.0');
+      expect(result.updated).toBe(false);
+    });
+  });
   let mockGetInput: ReturnType<typeof vi.fn>;
   let mockSetFailed: ReturnType<typeof vi.fn>;
   let mockInfo: ReturnType<typeof vi.fn>;
@@ -184,12 +242,6 @@ describe('update-chart-dependency Action', () => {
     });
     await run();
     expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining('Failed to process chart'));
-  });
-
-  it('should return updated: false for invalid YAML', () => {
-    vi.spyOn(fs, 'readFileSync').mockReturnValue('invalid: : yaml');
-    const result = updateDependencyVersion('/fake/path', 'test-service', '1.2.3');
-    expect(result.updated).toBe(false);
   });
 
   it('should return undefined from getFileSha on error', async () => {
