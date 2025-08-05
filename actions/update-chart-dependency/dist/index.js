@@ -31189,7 +31189,7 @@ function findChartFiles(workspace, chartDir) {
   }
   return files;
 }
-function updateDependencyVersion(filePath, dependencyName, version) {
+function updateChartYamlDependency(filePath, dependencyName, version) {
   const fileContent = fs.readFileSync(filePath, "utf8");
   let updated = false;
   let oldVersion;
@@ -31212,6 +31212,31 @@ function updateDependencyVersion(filePath, dependencyName, version) {
     return { updated: false };
   }
   const newContent = yaml.stringify(chart);
+  return { updated: true, oldVersion, newVersion: version, newContent };
+}
+function updateHelmfileReleaseVersion(filePath, releaseName, version) {
+  const fileContent = fs.readFileSync(filePath, "utf8");
+  let updated = false;
+  let oldVersion;
+  let helmfile;
+  try {
+    helmfile = yaml.parse(fileContent);
+  } catch {
+    return { updated: false };
+  }
+  if (typeof helmfile === "object" && helmfile !== null && "releases" in helmfile && Array.isArray(helmfile.releases)) {
+    for (const rel of helmfile.releases) {
+      if (typeof rel === "object" && rel !== null && "name" in rel && typeof rel.name === "string" && "version" in rel && typeof rel.version === "string" && rel.name === releaseName && rel.version !== version) {
+        oldVersion = rel.version;
+        rel.version = version;
+        updated = true;
+      }
+    }
+  }
+  if (!updated) {
+    return { updated: false };
+  }
+  const newContent = yaml.stringify(helmfile);
   return { updated: true, oldVersion, newVersion: version, newContent };
 }
 async function getFileSha(octokit, owner, repo, path2, branch) {
@@ -31308,7 +31333,14 @@ async function run() {
         let chartUpdated = false;
         for (const absFilePath of chartFiles) {
           const relFilePath = `${chartDir}/${path.basename(absFilePath)}`;
-          const updateResult = updateDependencyVersion(absFilePath, serviceName, version);
+          let updateResult;
+          if (absFilePath.endsWith(CHART_FILE_NAME)) {
+            updateResult = updateChartYamlDependency(absFilePath, serviceName, version);
+          } else if (absFilePath.endsWith(HELMFILE_NAME)) {
+            updateResult = updateHelmfileReleaseVersion(absFilePath, serviceName, version);
+          } else {
+            continue;
+          }
           const newContent = updateResult.newContent;
           if (updateResult.updated && typeof newContent === "string" && newContent.length > 0) {
             fileUpdates.push({ path: relFilePath, content: newContent });
