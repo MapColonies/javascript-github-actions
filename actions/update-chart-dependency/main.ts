@@ -83,7 +83,7 @@ function getInputs(): ActionInputs {
   const serviceName = getInput('service-name');
   const version = getInput('version');
   const githubToken = getInput('github-token');
-  const chartPrefix = getInput('chart-prefix') || '';
+  const chartPrefix = getInput('chart-prefix');
   const branch = getInput('branch') || DEFAULT_BASE_BRANCH;
   return { serviceName, version, githubToken, chartPrefix, branch };
 }
@@ -369,6 +369,7 @@ export async function run(): Promise<void> {
       })
       .filter((dir) => {
         const hasPrefix = chartPrefix === '' || dir.startsWith(chartPrefix);
+        // TODO: doesn't handle helmfile, should use findChartFiles instead
         const chartPath = path.join(workspace, dir, CHART_FILE_NAME);
         return hasPrefix && fs.existsSync(chartPath);
       });
