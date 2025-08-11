@@ -50,7 +50,7 @@ const createMockGetInput = (inputs: MockInputs = {}) => {
       case 'chart-prefix':
         return inputs.chartPrefix ?? '';
       case 'branch':
-        return inputs.branch ?? 'main';
+        return inputs.branch ?? 'master';
       default:
         return '';
     }

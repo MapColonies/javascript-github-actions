@@ -19,5 +19,5 @@ inputs:
     description: 'Prefix to filter chart directories. Only charts whose directory starts with this prefix will be updated.'
     required: false
   branch:
-    description: 'Branch to base the PR on (default: main).'
+    description: 'Branch to base the PR on (default: master).'
     required: false

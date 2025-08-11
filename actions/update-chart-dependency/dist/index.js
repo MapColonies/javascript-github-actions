@@ -31168,7 +31168,7 @@ var import_github = __toESM(require_github());
 var CHART_FILE_NAME = "Chart.yaml";
 var HELMFILE_NAME = "helmfile.yaml";
 var PR_TITLE_PREFIX = "Update Helm chart dependencies: ";
-var DEFAULT_BASE_BRANCH = "main";
+var DEFAULT_BASE_BRANCH = "master";
 function getInputs() {
   const serviceName = (0, import_core.getInput)("service-name");
   const version = (0, import_core.getInput)("version");

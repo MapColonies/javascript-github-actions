@@ -6,7 +6,7 @@ This repository contains a collection of JavaScript-based GitHub Actions that ca
 
 - [jira-integration](./actions/jira-integration) - Helps connecting pull requests to jira including comments on the pull request and title validation
 
-- [update-chart-dependency](./actions/update-chart-dependency) - Update remote chat dependencies with a new service version
+- [update-chart-dependency](./actions/update-chart-dependency) - Update remote chart dependencies with a new service version
 
 ## Development
 

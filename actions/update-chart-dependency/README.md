@@ -16,13 +16,13 @@ This GitHub Action updates the version of a specific dependency in the `Chart.ya
 
 ## Inputs
 
-| Name           | Description                                                                                              | Required | Default |
-| -------------- | -------------------------------------------------------------------------------------------------------- | -------- | ------- |
-| `service-name` | Name of the dependency to update in Chart.yaml/helmfile.yaml.                                            | true     |         |
-| `version`      | New version to set for the dependency.                                                                   | true     |         |
-| `github-token` | GitHub token for authentication.                                                                         | true     |         |
-| `chart-prefix` | Prefix to filter chart directories. Only charts whose directory starts with this prefix will be updated. | false    |         |
-| `branch`       | Branch to base the PR on (e.g. `main`).                                                                  | false    | `main`  |
+| Name           | Description                                                                                              | Required | Default  |
+| -------------- | -------------------------------------------------------------------------------------------------------- | -------- | -------- |
+| `service-name` | Name of the dependency to update in Chart.yaml/helmfile.yaml.                                            | true     |          |
+| `version`      | New version to set for the dependency.                                                                   | true     |          |
+| `github-token` | GitHub token for authentication.                                                                         | true     |          |
+| `chart-prefix` | Prefix to filter chart directories. Only charts whose directory starts with this prefix will be updated. | false    |          |
+| `branch`       | Branch to base the PR on (e.g. `master`).                                                                | false    | `master` |
 
 ## Usage
 
@@ -34,7 +34,7 @@ This GitHub Action updates the version of a specific dependency in the `Chart.ya
     version: '1.2.3'
     github-token: ${{ secrets.GITHUB_TOKEN }}
     chart-prefix: 'myservice-'
-    branch: 'main'
+    branch: 'master'
 ```
 
 ## Notes

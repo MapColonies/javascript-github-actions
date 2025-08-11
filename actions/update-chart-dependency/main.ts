@@ -72,7 +72,7 @@ const PR_TITLE_PREFIX = 'Update Helm chart dependencies: ' as const;
 /**
  * @constant DEFAULT_BASE_BRANCH - Default base branch for PR
  */
-const DEFAULT_BASE_BRANCH = 'main' as const;
+const DEFAULT_BASE_BRANCH = 'master' as const;
 
 /**
  * @description Get action inputs from core
