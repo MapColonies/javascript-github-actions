@@ -2,7 +2,7 @@ name: 'Update Helm Chart Dependencies'
 description: 'Updates Chart.yaml for Helm charts and opens a PR with the changes.'
 
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/index.js'
 
 inputs:
