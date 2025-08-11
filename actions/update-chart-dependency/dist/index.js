@@ -31173,7 +31173,7 @@ function getInputs() {
   const serviceName = (0, import_core.getInput)("service-name");
   const version = (0, import_core.getInput)("version");
   const githubToken = (0, import_core.getInput)("github-token");
-  const chartPrefix = (0, import_core.getInput)("chart-prefix") || "";
+  const chartPrefix = (0, import_core.getInput)("chart-prefix");
   const branch = (0, import_core.getInput)("branch") || DEFAULT_BASE_BRANCH;
   return { serviceName, version, githubToken, chartPrefix, branch };
 }
@@ -31238,6 +31238,21 @@ function updateHelmfileReleaseVersion(filePath, releaseName, version) {
   }
   const newContent = yaml.stringify(helmfile);
   return { updated: true, oldVersion, newVersion: version, newContent };
+}
+function getChartFilesWithDirs(workspace, chartPrefix) {
+  const chartDirents = fs.readdirSync(workspace, { withFileTypes: true });
+  const chartFilesWithDirs = [];
+  for (const dirent of chartDirents) {
+    if (!dirent.isDirectory()) continue;
+    const dir = typeof dirent.name === "string" ? dirent.name : dirent.name.toString();
+    const hasPrefix = chartPrefix === "" || dir.startsWith(chartPrefix);
+    if (!hasPrefix) continue;
+    const files = findChartFiles(workspace, dir);
+    for (const absFilePath of files) {
+      chartFilesWithDirs.push({ chartDir: dir, absFilePath });
+    }
+  }
+  return chartFilesWithDirs;
 }
 async function getFileSha(octokit, owner, repo, path2, branch) {
   try {
@@ -31313,57 +31328,43 @@ async function run() {
     const octokit = (0, import_github.getOctokit)(githubToken);
     const { owner, repo } = import_github.context.repo;
     const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
-    const chartDirents = fs.readdirSync(workspace, { withFileTypes: true });
-    const chartDirs = chartDirents.filter((dirent) => dirent.isDirectory()).map((dirent) => {
-      return typeof dirent.name === "string" ? dirent.name : dirent.name.toString();
-    }).filter((dir) => {
-      const hasPrefix = chartPrefix === "" || dir.startsWith(chartPrefix);
-      const chartPath = path.join(workspace, dir, CHART_FILE_NAME);
-      return hasPrefix && fs.existsSync(chartPath);
-    });
-    const fileUpdates = [];
-    const updatedCharts = [];
-    if (chartDirs.length === 0) {
+    const chartFilesWithDirs = getChartFilesWithDirs(workspace, chartPrefix);
+    if (chartFilesWithDirs.length === 0) {
       (0, import_core.info)(`No charts required updating for dependency '${serviceName}'. No PR will be opened.`);
       return;
     }
-    for (const chartDir of chartDirs) {
+    const fileUpdates = [];
+    const updatedCharts = /* @__PURE__ */ new Set();
+    for (const { chartDir, absFilePath } of chartFilesWithDirs) {
       try {
-        const chartFiles = findChartFiles(workspace, chartDir);
-        let chartUpdated = false;
-        for (const absFilePath of chartFiles) {
-          const relFilePath = `${chartDir}/${path.basename(absFilePath)}`;
-          let updateResult;
-          if (absFilePath.endsWith(CHART_FILE_NAME)) {
-            updateResult = updateChartYamlDependency(absFilePath, serviceName, version);
-          } else if (absFilePath.endsWith(HELMFILE_NAME)) {
-            updateResult = updateHelmfileReleaseVersion(absFilePath, serviceName, version);
-          } else {
-            continue;
-          }
-          const newContent = updateResult.newContent;
-          if (updateResult.updated && typeof newContent === "string" && newContent.length > 0) {
-            fileUpdates.push({ path: relFilePath, content: newContent });
-            chartUpdated = true;
-          }
+        const relFilePath = `${chartDir}/${path.basename(absFilePath)}`;
+        let updateResult;
+        if (absFilePath.endsWith(CHART_FILE_NAME)) {
+          updateResult = updateChartYamlDependency(absFilePath, serviceName, version);
+        } else if (absFilePath.endsWith(HELMFILE_NAME)) {
+          updateResult = updateHelmfileReleaseVersion(absFilePath, serviceName, version);
+        } else {
+          continue;
         }
-        if (chartUpdated) {
-          updatedCharts.push(chartDir);
+        const newContent = updateResult.newContent;
+        if (updateResult.updated && typeof newContent === "string" && newContent.length > 0) {
+          fileUpdates.push({ path: relFilePath, content: newContent });
+          updatedCharts.add(chartDir);
         }
       } catch (chartError) {
         (0, import_core.warning)(`Failed to process chart '${chartDir}': ${chartError instanceof Error ? chartError.message : ""}`);
       }
     }
-    if (updatedCharts.length === 0) {
+    if (updatedCharts.size === 0) {
       (0, import_core.info)(`No charts required updating for dependency '${serviceName}'. No PR will be opened.`);
       return;
     }
-    const chartsLabel = chartPrefix ? `${chartPrefix}*` : updatedCharts.join(", ");
-    const branchName = `update-helm-chart-${chartsLabel}-${serviceName}-${version}`;
+    const chartsLabel = chartPrefix ? `-${chartPrefix}*` : "";
+    const branchName = `update-helm-chart${chartsLabel}-${serviceName}-${version}`;
     await createBranch(octokit, owner, repo, branch, branchName);
     await updateFilesInBranch(octokit, owner, repo, branchName, fileUpdates);
-    await createPullRequest(octokit, owner, repo, branchName, updatedCharts, serviceName, version, branch);
-    (0, import_core.info)(`Successfully created PR to update dependency '${serviceName}' to version ${version} in charts: ${updatedCharts.join(", ")}`);
+    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), serviceName, version, branch);
+    (0, import_core.info)(`Successfully created PR to update dependency '${serviceName}' to version ${version} in charts: ${Array.from(updatedCharts).join(", ")}`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     (0, import_core.setFailed)(`Action failed with error: ${errorMessage}`);

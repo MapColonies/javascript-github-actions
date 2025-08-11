@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { run, getFileSha, updateChartYamlDependency, updateHelmfileReleaseVersion } from '../main.js';
+import { run, getFileSha, updateChartYamlDependency, updateHelmfileReleaseVersion, getChartFilesWithDirs } from '../main.js';
 
 vi.mock('@actions/core');
 vi.mock('@actions/github');
@@ -19,6 +19,20 @@ interface MockInputs {
   readonly githubToken?: string;
   readonly chartPrefix?: string;
   readonly branch?: string;
+}
+
+function makeDirent(name: string, isDir = true): fs.Dirent<Buffer> {
+  return {
+    name: Buffer.from(name),
+    parentPath: '',
+    isDirectory: () => isDir,
+    isFile: () => !isDir,
+    isBlockDevice: () => false,
+    isCharacterDevice: () => false,
+    isSymbolicLink: () => false,
+    isFIFO: () => false,
+    isSocket: () => false,
+  };
 }
 
 /**
@@ -60,7 +74,7 @@ describe('update-chart-dependency Action', () => {
     it('should update dependency version in Chart.yaml', () => {
       const yamlContent = [
         'apiVersion: v2',
-        'name: chart1',
+        'name: chart',
         'version: 1.0.0',
         'dependencies:',
         '  - name: test-service',
@@ -141,6 +155,7 @@ describe('update-chart-dependency Action', () => {
         },
       },
     }));
+
     // GITHUB_WORKSPACE is an environment variable, not camelCase. This is intentional for mocking.
     // eslint-disable-next-line @typescript-eslint/naming-convention
     vi.stubGlobal('process', { env: { GITHUB_WORKSPACE: '/workspace' }, cwd: () => '/workspace' });
@@ -161,20 +176,7 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should not open PR if no charts require updating', async () => {
-    /**
-     * @description Mock Dirent object for readdirSync, matching { withFileTypes: true }
-     */
-    const mockDirent: fs.Dirent<Buffer> = {
-      name: Buffer.from('chart1'),
-      parentPath: '',
-      isDirectory: () => true,
-      isFile: () => false,
-      isBlockDevice: () => false,
-      isCharacterDevice: () => false,
-      isSymbolicLink: () => false,
-      isFIFO: () => false,
-      isSocket: () => false,
-    };
+    const mockDirent = makeDirent('chart');
     vi.spyOn(fs, 'readdirSync').mockImplementation(() => [mockDirent]);
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
     vi.spyOn(fs, 'readFileSync').mockReturnValue('dependencies:\n  - name: test-service\n    version: 1.2.3');
@@ -183,31 +185,21 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should create PR if chart dependency is updated', async () => {
-    const mockDirent: fs.Dirent<Buffer> = {
-      name: Buffer.from('chart1'),
-      parentPath: '',
-      isDirectory: () => true,
-      isFile: () => false,
-      isBlockDevice: () => false,
-      isCharacterDevice: () => false,
-      isSymbolicLink: () => false,
-      isFIFO: () => false,
-      isSocket: () => false,
-    };
+    const mockDirent = makeDirent('chart');
     vi.spyOn(fs, 'readdirSync').mockImplementation(() => [mockDirent]);
     vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => {
-      // Only Chart.yaml exists for chart1
+      // Only Chart.yaml exists for chart
       if (typeof filePath === 'string') {
-        return filePath === '/workspace/chart1/Chart.yaml';
+        return filePath === '/workspace/chart/Chart.yaml';
       }
       return false;
     });
     vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
       // Chart.yaml contains outdated version for test-service, with realistic structure
-      if (typeof filePath === 'string' && filePath === '/workspace/chart1/Chart.yaml') {
+      if (typeof filePath === 'string' && filePath === '/workspace/chart/Chart.yaml') {
         return [
           'apiVersion: v2',
-          'name: chart1',
+          'name: chart',
           'version: 1.0.0',
           'dependencies:',
           '  - name: test-service',
@@ -224,17 +216,7 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should warn if chart processing fails', async () => {
-    const mockDirent: fs.Dirent<Buffer> = {
-      name: Buffer.from('chart1'),
-      parentPath: '',
-      isDirectory: () => true,
-      isFile: () => false,
-      isBlockDevice: () => false,
-      isCharacterDevice: () => false,
-      isSymbolicLink: () => false,
-      isFIFO: () => false,
-      isSocket: () => false,
-    };
+    const mockDirent = makeDirent('chart');
     vi.spyOn(fs, 'readdirSync').mockImplementation(() => [mockDirent]);
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
@@ -262,5 +244,43 @@ describe('update-chart-dependency Action', () => {
     });
     await run();
     expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Action failed with error:'));
+  });
+
+  it('should return chart and helmfile paths for matching directories', () => {
+    const mockDirent = makeDirent('chart');
+    vi.spyOn(fs, 'readdirSync').mockReturnValue([mockDirent]);
+    vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => {
+      if (typeof filePath === 'string') {
+        return filePath.endsWith('Chart.yaml') || filePath.endsWith('helmfile.yaml');
+      }
+      return false;
+    });
+    const result = getChartFilesWithDirs('/workspace', '');
+    expect(result).toEqual([
+      { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yaml' },
+      { chartDir: 'chart', absFilePath: '/workspace/chart/helmfile.yaml' },
+    ]);
+  });
+
+  it('should filter directories by prefix', () => {
+    const mockDirent1 = makeDirent('foo-service');
+    const mockDirent2 = makeDirent('bar-service');
+    vi.spyOn(fs, 'readdirSync').mockReturnValue([mockDirent1, mockDirent2]);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const result = getChartFilesWithDirs('/workspace', 'foo');
+    expect(result.every((r) => r.chartDir.startsWith('foo'))).toBe(true);
+  });
+
+  it('should return empty array if no directories match', () => {
+    vi.spyOn(fs, 'readdirSync').mockReturnValue([]);
+    const result = getChartFilesWithDirs('/workspace', '');
+    expect(result).toEqual([]);
+  });
+
+  it('should skip non-directories', () => {
+    const mockDirent = makeDirent('file.txt', false);
+    vi.spyOn(fs, 'readdirSync').mockReturnValue([mockDirent]);
+    const result = getChartFilesWithDirs('/workspace', '');
+    expect(result).toEqual([]);
   });
 });
