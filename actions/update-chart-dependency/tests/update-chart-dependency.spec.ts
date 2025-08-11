@@ -195,7 +195,7 @@ describe('update-chart-dependency Action', () => {
       return false;
     });
     vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
-      // Chart.yaml contains outdated version for test-service, with realistic structure
+      // Chart.yaml contains outdated version for test-service
       if (typeof filePath === 'string' && filePath === '/workspace/chart/Chart.yaml') {
         return [
           'apiVersion: v2',
@@ -251,14 +251,19 @@ describe('update-chart-dependency Action', () => {
     vi.spyOn(fs, 'readdirSync').mockReturnValue([mockDirent]);
     vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => {
       if (typeof filePath === 'string') {
-        return filePath.endsWith('Chart.yaml') || filePath.endsWith('helmfile.yaml');
+        // Simulate all four file types exist
+        return (
+          filePath.endsWith('Chart.yaml') || filePath.endsWith('Chart.yml') || filePath.endsWith('helmfile.yaml') || filePath.endsWith('helmfile.yml')
+        );
       }
       return false;
     });
     const result = getChartFilesWithDirs('/workspace', '');
     expect(result).toEqual([
       { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yaml' },
+      { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yml' },
       { chartDir: 'chart', absFilePath: '/workspace/chart/helmfile.yaml' },
+      { chartDir: 'chart', absFilePath: '/workspace/chart/helmfile.yml' },
     ]);
   });
 
