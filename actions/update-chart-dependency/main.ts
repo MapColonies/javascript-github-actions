@@ -473,3 +473,5 @@ export {
   updateFilesInBranch,
   createPullRequest,
 };
+
+export type { ActionInputs };

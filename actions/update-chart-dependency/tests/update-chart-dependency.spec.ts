@@ -5,21 +5,11 @@ import { describe, it, expect, vi, beforeEach, MockInstance } from 'vitest';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { run, getFileSha, updateChartYamlDependency, updateHelmfileReleaseVersion, getChartFilesWithDirs } from '../main.js';
+import type { ActionInputs } from '../main.js';
 
 vi.mock('@actions/core');
 vi.mock('@actions/github');
 vi.mock('fs');
-
-/**
- * @typedef MockInputs - Inputs for the action
- */
-interface MockInputs {
-  readonly chartName?: string;
-  readonly version?: string;
-  readonly githubToken?: string;
-  readonly targetChartPrefix?: string;
-  readonly branch?: string;
-}
 
 function makeDirent(name: string, isDir = true): fs.Dirent<Buffer> {
   return {
@@ -38,7 +28,7 @@ function makeDirent(name: string, isDir = true): fs.Dirent<Buffer> {
 /**
  * @description Helper to mock getInput
  */
-const createMockGetInput = (inputs: MockInputs = {}) => {
+const createMockGetInput = (inputs: Partial<ActionInputs> = {}) => {
   return (name: string): string => {
     switch (name) {
       case 'chart-name':
