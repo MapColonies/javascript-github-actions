@@ -6,7 +6,7 @@ runs:
   main: 'dist/index.js'
 
 inputs:
-  service-name:
+  chart-name:
     description: 'Name of the dependency to update in Chart / helmfile.'
     required: true
   version:
@@ -15,7 +15,7 @@ inputs:
   github-token:
     description: 'GitHub token for authentication.'
     required: true
-  chart-prefix:
+  target-chart-prefix:
     description: 'Prefix to filter chart directories. Only charts whose directory starts with this prefix will be updated.'
     required: false
   branch:

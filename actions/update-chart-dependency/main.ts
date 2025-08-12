@@ -1,31 +1,34 @@
 /**
  * @file Main entry for the Helm chart dependency update GitHub Action.
- * @description Updates Chart and helmfile yaml files for Helm charts and opens PRs.
+ * @description Updates Helm chart and helmfile YAML files for dependencies and opens PRs.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as yaml from 'yaml';
+import fs from 'fs';
+import path from 'path';
+import yaml from 'yaml';
 import { getInput, setFailed, info, warning } from '@actions/core';
 import { getOctokit, context as githubContext } from '@actions/github';
 
 /**
- * Inputs for the action inputs
+ * @typedef ActionInputs
+ * @property {string} chartName - Name of the chart to update
+ * @property {string} version - New version to set
+ * @property {string} githubToken - GitHub token for authentication
+ * @property {string} targetChartPrefix - Prefix to filter chart directories
+ * @property {string} branch - Base branch for the PR
  */
 interface ActionInputs {
-  readonly serviceName: string;
+  readonly chartName: string;
   readonly version: string;
   readonly githubToken: string;
-  readonly chartPrefix: string;
+  readonly targetChartPrefix: string;
   readonly branch: string;
 }
 
 /**
- * @description Helm chart dependency object
- * @param filePath - path to file
- * @param dependencyName - name of the dependency / service to update
- * @param version - new version
- * @returns UpdateResult
+ * @typedef ChartDependency
+ * @property {string} name - Dependency name
+ * @property {string} version - Dependency version
  */
 interface ChartDependency {
   [key: string]: unknown;
@@ -34,7 +37,8 @@ interface ChartDependency {
 }
 
 /**
- * Helm Chart structure
+ * @typedef ChartYaml
+ * @property {ChartDependency[]} [dependencies] - List of chart dependencies
  */
 interface ChartYaml {
   [key: string]: unknown;
@@ -42,7 +46,11 @@ interface ChartYaml {
 }
 
 /**
- * Result of file update
+ * @typedef UpdateResult
+ * @property {boolean} updated - Whether the file was updated
+ * @property {string} [oldVersion] - Previous version
+ * @property {string} [newVersion] - New version
+ * @property {string} [newContent] - Updated file content
  */
 interface UpdateResult {
   updated: boolean;
@@ -51,40 +59,33 @@ interface UpdateResult {
   newContent?: string;
 }
 
-/**
- * @constant CHART_FILE_NAME - Chart filename
- */
+/** @constant {string} CHART_FILE_NAME - Chart filename prefix */
 const CHART_FILE_NAME = 'Chart' as const;
-/**
- * @constant HELMFILE_NAME - helmfile filename
- */
+/** @constant {string} HELMFILE_NAME - Helmfile filename prefix */
 const HELMFILE_NAME = 'helmfile' as const;
-/**
- * @constant PR_TITLE_PREFIX - PR title prefix
- */
-const PR_TITLE_PREFIX = 'deps: update Helm chart dependencies: ' as const;
-/**
- * @constant DEFAULT_BASE_BRANCH - Default base branch for PR
- */
+/** @constant {string} PR_TITLE_PREFIX - PR title prefix for pull requests */
+const PR_TITLE_PREFIX = 'deps: update Helm dependencies: ' as const;
+/** @constant {string} DEFAULT_BASE_BRANCH - Default base branch for PRs */
 const DEFAULT_BASE_BRANCH = 'master' as const;
 
 /**
- * @description Get action inputs from core
- * @returns ActionInputs
+ * Get action inputs from GitHub Actions runtime.
+ * @returns {ActionInputs}
  */
 function getInputs(): ActionInputs {
-  const serviceName = getInput('service-name');
+  const chartName = getInput('chart-name');
   const version = getInput('version');
   const githubToken = getInput('github-token');
-  const chartPrefix = getInput('chart-prefix');
+  const targetChartPrefix = getInput('target-chart-prefix');
   const branch = getInput('branch') || DEFAULT_BASE_BRANCH;
-  return { serviceName, version, githubToken, chartPrefix, branch };
+  return { chartName, version, githubToken, targetChartPrefix, branch };
 }
 
 /**
- * @description Find Chart and helmfile yaml files for the given chart directory
- * @param chartDir - chart directory name
- * @returns absolute paths to Chart and helmfile yaml files (if exist)
+ * Find Chart and helmfile YAML files for a given chart directory.
+ * @param {string} workspace - Root workspace directory
+ * @param {string} chartDir - Chart directory name
+ * @returns {string[]} Absolute paths to Chart and helmfile YAML files (if they exist)
  */
 function findChartFiles(workspace: string, chartDir: string): string[] {
   const files: string[] = [];
@@ -102,11 +103,11 @@ function findChartFiles(workspace: string, chartDir: string): string[] {
 }
 
 /**
- * @description Update dependency version for a given service in Chart yaml file
- * @param filePath - path to file
- * @param dependencyName - name of the dependency / service to update
- * @param version - new version
- * @returns UpdateResult
+ * Update dependency version for a given service in a Chart.yaml file.
+ * @param {string} filePath - Path to Chart.yaml
+ * @param {string} dependencyName - Dependency / service to update
+ * @param {string} version - New version
+ * @returns {UpdateResult}
  */
 function updateChartYamlDependency(filePath: string, dependencyName: string, version: string): UpdateResult {
   const fileContent = fs.readFileSync(filePath, 'utf8');
@@ -135,11 +136,11 @@ function updateChartYamlDependency(filePath: string, dependencyName: string, ver
 }
 
 /**
- * @description Update release version for a given service in helmfile yaml file
- * @param filePath - path to helmfile.yaml
- * @param releaseName - name of the release/service to update
- * @param version - new version
- * @returns UpdateResult
+ * Update release version for a given service in a helmfile.yaml file.
+ * @param {string} filePath - Path to helmfile.yaml
+ * @param {string} releaseName - Release / service to update
+ * @param {string} version - New version
+ * @returns {UpdateResult}
  */
 function updateHelmfileReleaseVersion(filePath: string, releaseName: string, version: string): UpdateResult {
   const fileContent = fs.readFileSync(filePath, 'utf8');
@@ -177,12 +178,12 @@ function updateHelmfileReleaseVersion(filePath: string, releaseName: string, ver
 }
 
 /**
- * @description Collect all chart / helmfile file paths
- * @param workspace - workspace directory
- * @param chartPrefix - chart directory prefix filter
- * @returns Array of { chartDir, absFilePath }
+ * Collect all chart / helmfile file paths in the workspace, filtered by prefix.
+ * @param {string} workspace - Workspace directory
+ * @param {string} targetChartPrefix - Chart directory prefix filter
+ * @returns {{ chartDir: string; absFilePath: string }[]} Array of chart directory and file path objects
  */
-function getChartFilesWithDirs(workspace: string, chartPrefix: string): { chartDir: string; absFilePath: string }[] {
+function getChartFilesWithDirs(workspace: string, targetChartPrefix: string): { chartDir: string; absFilePath: string }[] {
   /**
    * @description Use Dirent objects for robust directory listing
    * @see https://nodejs.org/api/fs.html#fsreaddirsyncpath-options
@@ -192,7 +193,7 @@ function getChartFilesWithDirs(workspace: string, chartPrefix: string): { chartD
   for (const dirent of chartDirents) {
     if (!dirent.isDirectory()) continue;
     const dir = typeof dirent.name === 'string' ? dirent.name : (dirent.name as Buffer).toString();
-    const hasPrefix = chartPrefix === '' || dir.startsWith(chartPrefix);
+    const hasPrefix = targetChartPrefix === '' || dir.startsWith(targetChartPrefix);
     if (!hasPrefix) continue;
     const files = findChartFiles(workspace, dir);
     for (const absFilePath of files) {
@@ -203,13 +204,13 @@ function getChartFilesWithDirs(workspace: string, chartPrefix: string): { chartD
 }
 
 /**
- * @description Get the SHA of a file in a branch
- * @param octokit - github client
- * @param owner - repo owner
- * @param repo - repo name
- * @param path - file path
- * @param branch - branch name
- * @returns SHA string or undefined
+ * Get the SHA of a file in a branch using the GitHub API.
+ * @param {ReturnType<typeof getOctokit>} octokit - GitHub client
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} path - File path
+ * @param {string} branch - Branch name
+ * @returns {Promise<string|undefined>} SHA string or undefined
  */
 async function getFileSha(
   octokit: ReturnType<typeof getOctokit>,
@@ -235,12 +236,13 @@ async function getFileSha(
 }
 
 /**
- * @description Create a new branch from base branch using GitHub API
- * @param octokit - github client
- * @param owner - repo owner
- * @param repo - repo name
- * @param baseBranch - base branch name
- * @param newBranch - new branch name
+ * Create a new branch from a base branch using the GitHub API.
+ * @param {ReturnType<typeof getOctokit>} octokit - GitHub client
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} baseBranch - Base branch name
+ * @param {string} newBranch - New branch name
+ * @returns {Promise<void>}
  */
 async function createBranch(
   octokit: ReturnType<typeof getOctokit>,
@@ -267,12 +269,15 @@ async function createBranch(
 }
 
 /**
- * @description Update files in the new branch using GitHub API
- * @param octokit - github client
- * @param owner - repo owner
- * @param repo - repo name
- * @param branchName - branch name
- * @param fileUpdates - array of { path, content }
+ * Update files in the new branch using the GitHub API.
+ * @param {ReturnType<typeof getOctokit>} octokit - GitHub client
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} branchName - Branch name
+ * @param {string} dependency - Dependency name
+ * @param {string} version - New version
+ * @param {{ path: string; content: string }[]} fileUpdates - Array of file updates
+ * @returns {Promise<void>}
  */
 async function updateFilesInBranch(
   octokit: ReturnType<typeof getOctokit>,
@@ -306,15 +311,16 @@ async function updateFilesInBranch(
 }
 
 /**
- * @description Create a pull request using GitHub API
- * @param octokit - github client
- * @param owner - repo owner
- * @param repo - repo name
- * @param branchName - branch name
- * @param chartsUpdated - list of chart directories updated
- * @param dependencyName - dependency name
- * @param newVersion - new chart version
- * @param baseBranch - base branch name
+ * Create a pull request using the GitHub API.
+ * @param {ReturnType<typeof getOctokit>} octokit - GitHub client
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} branchName - Branch name
+ * @param {string[]} chartsUpdated - List of updated chart directories
+ * @param {string} dependencyName - Dependency name
+ * @param {string} newVersion - New chart version
+ * @param {string} baseBranch - Base branch name
+ * @returns {Promise<void>}
  */
 async function createPullRequest(
   octokit: ReturnType<typeof getOctokit>,
@@ -337,16 +343,16 @@ async function createPullRequest(
 }
 
 /**
- * @description Main action runner
- * @returns Promise<void>
+ * Main action runner for the update-chart-dependency GitHub Action.
+ * @returns {Promise<void>}
  */
 export async function run(): Promise<void> {
   try {
-    const { serviceName, version, githubToken, chartPrefix, branch } = getInputs();
+    const { chartName, version, githubToken, targetChartPrefix, branch } = getInputs();
 
-    const missingInputs = !serviceName || !version || !githubToken;
+    const missingInputs = !chartName || !version || !githubToken;
     if (missingInputs) {
-      setFailed('Missing required inputs: service-name, version, github-token');
+      setFailed('Missing required inputs: chart-name, version, github-token');
       return;
     }
 
@@ -358,10 +364,10 @@ export async function run(): Promise<void> {
     const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
 
     // Collect all chart/helmfile files to process, filtered by prefix if provided
-    const chartFilesWithDirs = getChartFilesWithDirs(workspace, chartPrefix);
+    const chartFilesWithDirs = getChartFilesWithDirs(workspace, targetChartPrefix);
 
     if (chartFilesWithDirs.length === 0) {
-      info(`No charts required updating for dependency '${serviceName}'. No PR will be opened.`);
+      info(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
       return;
     }
 
@@ -377,9 +383,9 @@ export async function run(): Promise<void> {
 
         // Determine file type and call the appropriate update function
         if (fileName.includes(CHART_FILE_NAME)) {
-          updateResult = updateChartYamlDependency(absFilePath, serviceName, version);
+          updateResult = updateChartYamlDependency(absFilePath, chartName, version);
         } else if (fileName.includes(HELMFILE_NAME)) {
-          updateResult = updateHelmfileReleaseVersion(absFilePath, serviceName, version);
+          updateResult = updateHelmfileReleaseVersion(absFilePath, chartName, version);
         } else {
           continue;
         }
@@ -396,19 +402,19 @@ export async function run(): Promise<void> {
     }
 
     if (updatedCharts.size === 0) {
-      info(`No charts required updating for dependency '${serviceName}'. No PR will be opened.`);
+      info(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
       return;
     }
 
     // Compose PR branch name and label (include prefix if provided)
-    const chartsLabel = chartPrefix ? `-${chartPrefix}*` : '';
-    const branchName = `update-helm-chart${chartsLabel}-${serviceName}-${version}`;
+    const chartsLabel = targetChartPrefix ? `-${targetChartPrefix}*` : '';
+    const branchName = `update-helm-chart${chartsLabel}-${chartName}-${version}`;
 
     await createBranch(octokit, owner, repo, branch, branchName);
-    await updateFilesInBranch(octokit, owner, repo, branchName, serviceName, version, fileUpdates);
-    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), serviceName, version, branch);
+    await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, fileUpdates);
+    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), chartName, version, branch);
 
-    info(`Successfully created PR to update dependency '${serviceName}' to version ${version} in charts: ${Array.from(updatedCharts).join(', ')}`);
+    info(`Successfully created PR to update dependency '${chartName}' to version ${version} in charts: ${Array.from(updatedCharts).join(', ')}`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     setFailed(`Action failed with error: ${errorMessage}`);
