@@ -31212,7 +31212,7 @@ function updateChartYamlDependency(filePath, dependencyName, version) {
     return { updated: false };
   }
   const newContent = import_yaml.default.stringify(chart);
-  return { updated: true, oldVersion, newVersion: version, newContent };
+  return { updated: true, oldVersion, newContent };
 }
 function updateHelmfileReleaseVersion(filePath, releaseName, version) {
   const fileContent = import_fs.default.readFileSync(filePath, "utf8");
@@ -31237,7 +31237,7 @@ function updateHelmfileReleaseVersion(filePath, releaseName, version) {
     return { updated: false };
   }
   const newContent = import_yaml.default.stringify(helmfile);
-  return { updated: true, oldVersion, newVersion: version, newContent };
+  return { updated: true, oldVersion, newContent };
 }
 function getChartFilesWithDirs(workspace, targetChartPrefix) {
   const chartDirents = import_fs.default.readdirSync(workspace, { withFileTypes: true });
@@ -31285,26 +31285,32 @@ async function createBranch(octokit, owner, repo, baseBranch, newBranch) {
     sha: baseSha
   });
 }
-async function updateFilesInBranch(octokit, owner, repo, branchName, dependency, version, fileUpdates) {
-  for (const { path: filePath, content } of fileUpdates) {
-    const fileSha = await getFileSha(octokit, owner, repo, filePath, branchName);
-    await octokit.rest.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: filePath,
-      message: `deps: update '${dependency}' to version ${version} in ${filePath}`,
-      content: Buffer.from(content).toString("base64"),
-      branch: branchName,
-      sha: fileSha,
-      committer: {
-        name: "github-actions[bot]",
-        email: "github-actions[bot]@users.noreply.github.com"
-      },
-      author: {
-        name: "github-actions[bot]",
-        email: "github-actions[bot]@users.noreply.github.com"
-      }
-    });
+async function updateFilesInBranch(octokit, owner, repo, branchName, dependency, newVersion, fileUpdates) {
+  for (const { path: filePath, content, oldVersion } of fileUpdates) {
+    try {
+      const fileSha = await getFileSha(octokit, owner, repo, filePath, branchName);
+      const hasOldVersion = typeof oldVersion === "string" && oldVersion.length > 0;
+      const versionMsg = hasOldVersion ? `from version ${oldVersion} to ${newVersion}` : `to version ${newVersion}`;
+      await octokit.rest.repos.createOrUpdateFileContents({
+        owner,
+        repo,
+        path: filePath,
+        message: `deps: update '${dependency}' ${versionMsg} in ${filePath}`,
+        content: Buffer.from(content).toString("base64"),
+        branch: branchName,
+        sha: fileSha,
+        committer: {
+          name: "github-actions[bot]",
+          email: "github-actions[bot]@users.noreply.github.com"
+        },
+        author: {
+          name: "github-actions[bot]",
+          email: "github-actions[bot]@users.noreply.github.com"
+        }
+      });
+    } catch (err) {
+      (0, import_core.warning)(`Failed to update file '${filePath}': ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 }
 async function createPullRequest(octokit, owner, repo, branchName, chartsUpdated, dependencyName, newVersion, baseBranch) {
@@ -31349,7 +31355,7 @@ async function run() {
         }
         const newContent = updateResult.newContent;
         if (updateResult.updated && typeof newContent === "string" && newContent.length > 0) {
-          fileUpdates.push({ path: relFilePath, content: newContent });
+          fileUpdates.push({ path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion });
           updatedCharts.add(chartDir);
         }
       } catch (chartError) {

@@ -49,14 +49,25 @@ interface ChartYaml {
  * @typedef UpdateResult
  * @property {boolean} updated - Whether the file was updated
  * @property {string} [oldVersion] - Previous version
- * @property {string} [newVersion] - New version
  * @property {string} [newContent] - Updated file content
  */
 interface UpdateResult {
   updated: boolean;
   oldVersion?: string;
-  newVersion?: string;
   newContent?: string;
+}
+
+/**
+ * @typedef FileUpdate
+ * @property {string} path - File path to update
+ * @property {string} content - New file content
+ * @property {string} [oldVersion] - Previous version (if available)
+ * @returns {void}
+ */
+interface FileUpdate {
+  path: string;
+  content: string;
+  oldVersion?: string;
 }
 
 /** @constant {string} CHART_FILE_NAME - Chart filename prefix */
@@ -132,7 +143,7 @@ function updateChartYamlDependency(filePath: string, dependencyName: string, ver
     return { updated: false };
   }
   const newContent: string = yaml.stringify(chart);
-  return { updated: true, oldVersion, newVersion: version, newContent };
+  return { updated: true, oldVersion, newContent };
 }
 
 /**
@@ -174,7 +185,7 @@ function updateHelmfileReleaseVersion(filePath: string, releaseName: string, ver
     return { updated: false };
   }
   const newContent: string = yaml.stringify(helmfile);
-  return { updated: true, oldVersion, newVersion: version, newContent };
+  return { updated: true, oldVersion, newContent };
 }
 
 /**
@@ -191,10 +202,14 @@ function getChartFilesWithDirs(workspace: string, targetChartPrefix: string): { 
   const chartDirents = fs.readdirSync(workspace, { withFileTypes: true });
   const chartFilesWithDirs: { chartDir: string; absFilePath: string }[] = [];
   for (const dirent of chartDirents) {
-    if (!dirent.isDirectory()) continue;
+    if (!dirent.isDirectory()) {
+      continue;
+    }
     const dir = typeof dirent.name === 'string' ? dirent.name : (dirent.name as Buffer).toString();
     const hasPrefix = targetChartPrefix === '' || dir.startsWith(targetChartPrefix);
-    if (!hasPrefix) continue;
+    if (!hasPrefix) {
+      continue;
+    }
     const files = findChartFiles(workspace, dir);
     for (const absFilePath of files) {
       chartFilesWithDirs.push({ chartDir: dir, absFilePath });
@@ -275,7 +290,7 @@ async function createBranch(
  * @param {string} repo - Repository name
  * @param {string} branchName - Branch name
  * @param {string} dependency - Dependency name
- * @param {string} version - New version
+ * @param {string} newVersion - New version
  * @param {{ path: string; content: string }[]} fileUpdates - Array of file updates
  * @returns {Promise<void>}
  */
@@ -285,28 +300,34 @@ async function updateFilesInBranch(
   repo: string,
   branchName: string,
   dependency: string,
-  version: string,
-  fileUpdates: { path: string; content: string }[]
+  newVersion: string,
+  fileUpdates: FileUpdate[]
 ): Promise<void> {
-  for (const { path: filePath, content } of fileUpdates) {
-    const fileSha = await getFileSha(octokit, owner, repo, filePath, branchName);
-    await octokit.rest.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: filePath,
-      message: `deps: update '${dependency}' to version ${version} in ${filePath}`,
-      content: Buffer.from(content).toString('base64'),
-      branch: branchName,
-      sha: fileSha,
-      committer: {
-        name: 'github-actions[bot]',
-        email: 'github-actions[bot]@users.noreply.github.com',
-      },
-      author: {
-        name: 'github-actions[bot]',
-        email: 'github-actions[bot]@users.noreply.github.com',
-      },
-    });
+  for (const { path: filePath, content, oldVersion } of fileUpdates) {
+    try {
+      const fileSha = await getFileSha(octokit, owner, repo, filePath, branchName);
+      const hasOldVersion = typeof oldVersion === 'string' && oldVersion.length > 0;
+      const versionMsg = hasOldVersion ? `from version ${oldVersion} to ${newVersion}` : `to version ${newVersion}`;
+      await octokit.rest.repos.createOrUpdateFileContents({
+        owner,
+        repo,
+        path: filePath,
+        message: `deps: update '${dependency}' ${versionMsg} in ${filePath}`,
+        content: Buffer.from(content).toString('base64'),
+        branch: branchName,
+        sha: fileSha,
+        committer: {
+          name: 'github-actions[bot]',
+          email: 'github-actions[bot]@users.noreply.github.com',
+        },
+        author: {
+          name: 'github-actions[bot]',
+          email: 'github-actions[bot]@users.noreply.github.com',
+        },
+      });
+    } catch (err) {
+      warning(`Failed to update file '${filePath}': ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 }
 
@@ -320,6 +341,7 @@ async function updateFilesInBranch(
  * @param {string} dependencyName - Dependency name
  * @param {string} newVersion - New chart version
  * @param {string} baseBranch - Base branch name
+ * @param {FileUpdate[]} fileUpdates - List of updated charts and their old versions
  * @returns {Promise<void>}
  */
 async function createPullRequest(
@@ -330,15 +352,33 @@ async function createPullRequest(
   chartsUpdated: string[],
   dependencyName: string,
   newVersion: string,
-  baseBranch: string
+  baseBranch: string,
+  fileUpdates: FileUpdate[]
 ): Promise<void> {
+  /**
+   * @description Compose a markdown list of updated charts and their old versions
+   */
+
+  const chartList = fileUpdates
+    .map(({ path, oldVersion }) => {
+      // Extract chart directory from path (format: chartDir/filename)
+      const chart = path.split('/')[0];
+      const oldVer = typeof oldVersion === 'string' && oldVersion.length > 0 ? ` (old version: ${oldVersion})` : '';
+      return `- \`${chart}\`${oldVer}`;
+    })
+    .join('\n');
+
+  const body = [`Update Helm chart dependency '\`${dependencyName}\`' to version \`${newVersion}\`.`, '', '### Updated charts:', chartList].join(
+    '\n'
+  );
+
   await octokit.rest.pulls.create({
     owner,
     repo,
     title: `${PR_TITLE_PREFIX}${dependencyName}`,
     head: branchName,
     base: baseBranch,
-    body: `Update Helm chart dependency '${dependencyName}' to version ${newVersion} in charts: ${chartsUpdated.join(', ')}.`,
+    body,
   });
 }
 
@@ -346,7 +386,7 @@ async function createPullRequest(
  * Main action runner for the update-chart-dependency GitHub Action.
  * @returns {Promise<void>}
  */
-export async function run(): Promise<void> {
+async function run(): Promise<void> {
   try {
     const { chartName, version, githubToken, targetChartPrefix, branch } = getInputs();
 
@@ -371,7 +411,7 @@ export async function run(): Promise<void> {
       return;
     }
 
-    const fileUpdates: { path: string; content: string }[] = [];
+    const fileUpdates: FileUpdate[] = [];
     const updatedCharts = new Set<string>();
 
     // Iterate over all chart / helmfile files and attempt to update dependency version
@@ -393,7 +433,7 @@ export async function run(): Promise<void> {
         const newContent = updateResult.newContent;
         // If the file was updated, stage it for commit and mark the chart as updated
         if (updateResult.updated && typeof newContent === 'string' && newContent.length > 0) {
-          fileUpdates.push({ path: relFilePath, content: newContent });
+          fileUpdates.push({ path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion });
           updatedCharts.add(chartDir);
         }
       } catch (chartError) {
@@ -412,7 +452,7 @@ export async function run(): Promise<void> {
 
     await createBranch(octokit, owner, repo, branch, branchName);
     await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, fileUpdates);
-    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), chartName, version, branch);
+    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), chartName, version, branch, fileUpdates);
 
     info(`Successfully created PR to update dependency '${chartName}' to version ${version} in charts: ${Array.from(updatedCharts).join(', ')}`);
   } catch (error) {
@@ -421,4 +461,15 @@ export async function run(): Promise<void> {
   }
 }
 
-export { getFileSha, updateChartYamlDependency, updateHelmfileReleaseVersion, getChartFilesWithDirs };
+export {
+  run,
+  getInputs,
+  findChartFiles,
+  updateChartYamlDependency,
+  updateHelmfileReleaseVersion,
+  getChartFilesWithDirs,
+  getFileSha,
+  createBranch,
+  updateFilesInBranch,
+  createPullRequest,
+};
