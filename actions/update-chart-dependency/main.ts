@@ -4,7 +4,7 @@
  */
 
 import fs from 'node:fs';
-import * as path from 'path';
+import path from 'node:path';
 import * as yaml from 'yaml';
 import { getInput, setFailed, info, warning } from '@actions/core';
 import { getOctokit, context as githubContext } from '@actions/github';
