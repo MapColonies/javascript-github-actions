@@ -2,6 +2,25 @@
 
 This GitHub Action updates the version of a specific dependency in the `Chart` and `helmfile` yaml files for one or more directories in your repository, creates a branch with the changes, and opens a pull request.
 
+## Action Operation Diagram
+
+```mermaid
+flowchart TD
+    A["Tag push in source repo (with Helm chart)"] -->|"GitHub Action triggered"| B
+    B["Checkout source repo"] --> C["Extract chart name & version from tag"]
+    C --> D["Clone target repo (with multiple chart / helmfile dirs)"]
+    D --> E["Scan all directories for Chart /helmfile yaml files"]
+    E --> F["Update dependency version for matching chart / helmfile"]
+    F --> G{"Any changes?"}
+    G -- No --> H["Exit: No update needed"]
+    G -- Yes --> I["Create branch, commit changes"]
+    I --> J["Open Pull Request to target repo"]
+    J --> K["Review & merge"]
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style J fill:#bbf,stroke:#333,stroke-width:2px
+```
+
 ## Features
 
 - Accepts a dependency service name and version as inputs.
