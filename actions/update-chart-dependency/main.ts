@@ -3,7 +3,7 @@
  * @description Updates Chart and helmfile yaml files for Helm charts and opens PRs.
  */
 
-import fs from 'node:fs';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
 import { getInput, setFailed, info, warning } from '@actions/core';
