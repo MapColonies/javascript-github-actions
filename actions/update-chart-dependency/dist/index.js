@@ -31178,9 +31178,7 @@ function getInputs() {
   return { chartName, version, githubToken, targetChartPrefix, branch };
 }
 function findChartFiles(workspace, chartDir) {
-  const files = [CHART_FILE_NAME, HELMFILE_NAME].flatMap(
-    (name) => ["yaml", "yml"].map((ext) => import_path.default.join(workspace, chartDir, `${name}.${ext}`))
-  ).filter((file) => import_fs.default.existsSync(file));
+  const files = [CHART_FILE_NAME, HELMFILE_NAME].flatMap((name) => ["yaml", "yml"].map((ext) => import_path.default.join(workspace, chartDir, `${name}.${ext}`))).filter((file) => import_fs.default.existsSync(file));
   return files;
 }
 function updateChartYamlDependency(filePath, dependencyName, version) {
