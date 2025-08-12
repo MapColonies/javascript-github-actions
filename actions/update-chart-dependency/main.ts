@@ -99,17 +99,9 @@ function getInputs(): ActionInputs {
  * @returns {string[]} Absolute paths to Chart and helmfile YAML files (if they exist)
  */
 function findChartFiles(workspace: string, chartDir: string): string[] {
-  const files: string[] = [];
-
-  [CHART_FILE_NAME, HELMFILE_NAME].forEach((name) => {
-    ['yaml', 'yml'].forEach((ext) => {
-      const file = path.join(workspace, chartDir, `${name}.${ext}`);
-      if (fs.existsSync(file)) {
-        files.push(file);
-      }
-    });
-  });
-
+  const files = [CHART_FILE_NAME, HELMFILE_NAME]
+    .flatMap((name) => ['yaml', 'yml'].map((ext) => path.join(workspace, chartDir, `${name}.${ext}`)))
+    .filter((file) => fs.existsSync(file));
   return files;
 }
 

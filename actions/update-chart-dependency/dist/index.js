@@ -31178,15 +31178,9 @@ function getInputs() {
   return { chartName, version, githubToken, targetChartPrefix, branch };
 }
 function findChartFiles(workspace, chartDir) {
-  const files = [];
-  [CHART_FILE_NAME, HELMFILE_NAME].forEach((name) => {
-    ["yaml", "yml"].forEach((ext) => {
-      const file = import_path.default.join(workspace, chartDir, `${name}.${ext}`);
-      if (import_fs.default.existsSync(file)) {
-        files.push(file);
-      }
-    });
-  });
+  const files = [CHART_FILE_NAME, HELMFILE_NAME].flatMap(
+    (name) => ["yaml", "yml"].map((ext) => import_path.default.join(workspace, chartDir, `${name}.${ext}`))
+  ).filter((file) => import_fs.default.existsSync(file));
   return files;
 }
 function updateChartYamlDependency(filePath, dependencyName, version) {
@@ -31243,10 +31237,14 @@ function getChartFilesWithDirs(workspace, targetChartPrefix) {
   const chartDirents = import_fs.default.readdirSync(workspace, { withFileTypes: true });
   const chartFilesWithDirs = [];
   for (const dirent of chartDirents) {
-    if (!dirent.isDirectory()) continue;
+    if (!dirent.isDirectory()) {
+      continue;
+    }
     const dir = typeof dirent.name === "string" ? dirent.name : dirent.name.toString();
     const hasPrefix = targetChartPrefix === "" || dir.startsWith(targetChartPrefix);
-    if (!hasPrefix) continue;
+    if (!hasPrefix) {
+      continue;
+    }
     const files = findChartFiles(workspace, dir);
     for (const absFilePath of files) {
       chartFilesWithDirs.push({ chartDir: dir, absFilePath });
@@ -31313,14 +31311,22 @@ async function updateFilesInBranch(octokit, owner, repo, branchName, dependency,
     }
   }
 }
-async function createPullRequest(octokit, owner, repo, branchName, chartsUpdated, dependencyName, newVersion, baseBranch) {
+async function createPullRequest(octokit, owner, repo, branchName, chartsUpdated, dependencyName, newVersion, baseBranch, fileUpdates) {
+  const chartList = fileUpdates.map(({ path: path2, oldVersion }) => {
+    const chart = path2.split("/")[0];
+    const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: ${oldVersion})` : "";
+    return `- \`${chart}\`${oldVer}`;
+  }).join("\n");
+  const body = [`Update Helm chart dependency '\`${dependencyName}\`' to version \`${newVersion}\`.`, "", "### Updated charts:", chartList].join(
+    "\n"
+  );
   await octokit.rest.pulls.create({
     owner,
     repo,
     title: `${PR_TITLE_PREFIX}${dependencyName}`,
     head: branchName,
     base: baseBranch,
-    body: `Update Helm chart dependency '${dependencyName}' to version ${newVersion} in charts: ${chartsUpdated.join(", ")}.`
+    body
   });
 }
 async function run() {
@@ -31370,7 +31376,7 @@ async function run() {
     const branchName = `update-helm-chart${chartsLabel}-${chartName}-${version}`;
     await createBranch(octokit, owner, repo, branch, branchName);
     await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, fileUpdates);
-    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), chartName, version, branch);
+    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), chartName, version, branch, fileUpdates);
     (0, import_core.info)(`Successfully created PR to update dependency '${chartName}' to version ${version} in charts: ${Array.from(updatedCharts).join(", ")}`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
