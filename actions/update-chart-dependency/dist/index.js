@@ -31173,9 +31173,10 @@ function getInputs() {
   const chartName = (0, import_core.getInput)("chart-name");
   const version = (0, import_core.getInput)("version");
   const githubToken = (0, import_core.getInput)("github-token");
+  const targetRepo = (0, import_core.getInput)("target-repo");
   const targetChartPrefix = (0, import_core.getInput)("target-chart-prefix");
   const branch = (0, import_core.getInput)("branch") || DEFAULT_BASE_BRANCH;
-  return { chartName, version, githubToken, targetChartPrefix, branch };
+  return { chartName, version, githubToken, targetRepo, targetChartPrefix, branch };
 }
 function findChartFiles(workspace, chartDir) {
   const files = [CHART_FILE_NAME, HELMFILE_NAME].flatMap((name) => ["yaml", "yml"].map((ext) => import_path.default.join(workspace, chartDir, `${name}.${ext}`))).filter((file) => import_fs.default.existsSync(file));
@@ -31191,13 +31192,14 @@ function updateChartYamlDependency(filePath, dependencyName, version) {
   } catch {
     return { updated: false };
   }
-  if (Array.isArray(chart.dependencies)) {
-    for (const dep of chart.dependencies) {
-      if (typeof dep.name === "string" && typeof dep.version === "string" && dep.name === dependencyName && dep.version !== version) {
-        oldVersion = dep.version;
-        dep.version = version;
-        updated = true;
-      }
+  if (!Array.isArray(chart.dependencies) || chart.dependencies.length === 0) {
+    return { updated: false };
+  }
+  for (const dep of chart.dependencies) {
+    if (typeof dep.name === "string" && typeof dep.version === "string" && dep.name === dependencyName && dep.version !== version) {
+      oldVersion = dep.version;
+      dep.version = version;
+      updated = true;
     }
   }
   if (!updated) {
@@ -31329,14 +31331,20 @@ async function createPullRequest(octokit, owner, repo, branchName, chartsUpdated
 }
 async function run() {
   try {
-    const { chartName, version, githubToken, targetChartPrefix, branch } = getInputs();
-    const missingInputs = !chartName || !version || !githubToken;
+    const { chartName, version, githubToken, targetRepo, targetChartPrefix, branch } = getInputs();
+    const missingInputs = !chartName || !version || !githubToken || !targetRepo;
     if (missingInputs) {
-      (0, import_core.setFailed)("Missing required inputs: chart-name, version, github-token");
+      (0, import_core.setFailed)("Missing required inputs: chart-name, version, github-token, target-repo");
       return;
     }
     const octokit = (0, import_github.getOctokit)(githubToken);
-    const { owner, repo } = import_github.context.repo;
+    const [owner, repo] = targetRepo.split("/");
+    const isOwnerMissing = typeof owner !== "string" || owner.trim() === "";
+    const isRepoMissing = typeof repo !== "string" || repo.trim() === "";
+    if (isOwnerMissing || isRepoMissing) {
+      (0, import_core.setFailed)("Invalid target-repo input. Must be in format owner/repo, both must be non-empty");
+      return;
+    }
     const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
     const chartFilesWithDirs = getChartFilesWithDirs(workspace, targetChartPrefix);
     if (chartFilesWithDirs.length === 0) {
