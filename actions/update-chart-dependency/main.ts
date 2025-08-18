@@ -14,6 +14,7 @@ import { getOctokit, context as githubContext } from '@actions/github';
  * @property {string} chartName - Name of the chart to update
  * @property {string} version - New version to set
  * @property {string} githubToken - GitHub token for authentication
+ * @property {string} targetRepo - Target repository to open the PR in (format: owner/repo)
  * @property {string} targetChartPrefix - Prefix to filter chart directories
  * @property {string} branch - Base branch for the PR
  */
@@ -21,6 +22,7 @@ interface ActionInputs {
   readonly chartName: string;
   readonly version: string;
   readonly githubToken: string;
+  readonly targetRepo: string;
   readonly targetChartPrefix: string;
   readonly branch: string;
 }
@@ -80,16 +82,17 @@ const PR_TITLE_PREFIX = 'deps: update Helm dependencies: ' as const;
 const DEFAULT_BASE_BRANCH = 'master' as const;
 
 /**
- * Get action inputs from GitHub Actions runtime.
+ * @description Get action inputs from GitHub Actions runtime.
  * @returns {ActionInputs}
  */
 function getInputs(): ActionInputs {
   const chartName = getInput('chart-name');
   const version = getInput('version');
   const githubToken = getInput('github-token');
+  const targetRepo = getInput('target-repo');
   const targetChartPrefix = getInput('target-chart-prefix');
   const branch = getInput('branch') || DEFAULT_BASE_BRANCH;
-  return { chartName, version, githubToken, targetChartPrefix, branch };
+  return { chartName, version, githubToken, targetRepo, targetChartPrefix, branch };
 }
 
 /**
@@ -117,18 +120,23 @@ function updateChartYamlDependency(filePath: string, dependencyName: string, ver
   let updated = false;
   let oldVersion: string | undefined;
   let chart: ChartYaml;
+
   try {
     chart = yaml.parse(fileContent) as ChartYaml;
   } catch {
     return { updated: false };
   }
-  if (Array.isArray(chart.dependencies)) {
-    for (const dep of chart.dependencies) {
-      if (typeof dep.name === 'string' && typeof dep.version === 'string' && dep.name === dependencyName && dep.version !== version) {
-        oldVersion = dep.version;
-        dep.version = version;
-        updated = true;
-      }
+
+  // If dependencies are not defined, there is nothing to update
+  if (!Array.isArray(chart.dependencies) || chart.dependencies.length === 0) {
+    return { updated: false };
+  }
+
+  for (const dep of chart.dependencies) {
+    if (typeof dep.name === 'string' && typeof dep.version === 'string' && dep.name === dependencyName && dep.version !== version) {
+      oldVersion = dep.version;
+      dep.version = version;
+      updated = true;
     }
   }
   if (!updated) {
@@ -380,17 +388,25 @@ async function createPullRequest(
  */
 async function run(): Promise<void> {
   try {
-    const { chartName, version, githubToken, targetChartPrefix, branch } = getInputs();
+    const { chartName, version, githubToken, targetRepo, targetChartPrefix, branch } = getInputs();
 
-    const missingInputs = !chartName || !version || !githubToken;
+    const missingInputs = !chartName || !version || !githubToken || !targetRepo;
     if (missingInputs) {
-      setFailed('Missing required inputs: chart-name, version, github-token');
+      setFailed('Missing required inputs: chart-name, version, github-token, target-repo');
       return;
     }
 
-    // Initialize GitHub API client and repo context
+    // Initialize GitHub API client
     const octokit = getOctokit(githubToken);
-    const { owner, repo } = githubContext.repo;
+
+    // Parse targetRepo (format: owner/repo)
+    const [owner, repo] = targetRepo.split('/');
+    const isOwnerMissing = typeof owner !== 'string' || owner.trim() === '';
+    const isRepoMissing = typeof repo !== 'string' || repo.trim() === '';
+    if (isOwnerMissing || isRepoMissing) {
+      setFailed('Invalid target-repo input. Must be in format owner/repo, both must be non-empty');
+      return;
+    }
 
     // Determine workspace directory (GitHub Actions or local)
     const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();

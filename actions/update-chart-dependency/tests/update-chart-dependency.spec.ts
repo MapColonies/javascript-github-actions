@@ -37,6 +37,8 @@ const createMockGetInput = (inputs: Partial<ActionInputs> = {}) => {
         return inputs.version ?? '1.2.3';
       case 'github-token':
         return inputs.githubToken ?? 'ghp_testtoken';
+      case 'target-repo':
+        return inputs.targetRepo ?? 'test-owner/test-repo';
       case 'target-chart-prefix':
         return inputs.targetChartPrefix ?? '';
       case 'branch':
@@ -138,6 +140,20 @@ describe('update-chart-dependency Action', () => {
       const result = updateChartYamlDependency('/fake/path/Chart.yaml', 'test-service', '1.2.3');
       expect(result.updated).toBe(false);
     });
+
+    it('should return updated: false if dependencies are not defined', () => {
+      // Chart.yaml with no dependencies key
+      readFileSyncSpy.mockReturnValue(['apiVersion: v2', 'name: chart', 'version: 1.0.0', ''].join('\n'));
+      const result = updateChartYamlDependency('/fake/path/Chart.yaml', 'test-service', '1.2.3');
+      expect(result.updated).toBe(false);
+    });
+
+    it('should return updated: false if dependencies is an empty array', () => {
+      // Chart.yaml with empty dependencies
+      readFileSyncSpy.mockReturnValue(['apiVersion: v2', 'name: chart', 'version: 1.0.0', 'dependencies: []', ''].join('\n'));
+      const result = updateChartYamlDependency('/fake/path/Chart.yaml', 'test-service', '1.2.3');
+      expect(result.updated).toBe(false);
+    });
   });
 
   describe('updateHelmfileReleaseVersion', () => {
@@ -165,10 +181,31 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should fail if required inputs are missing', async () => {
-    mockGetInput = vi.fn(createMockGetInput({ chartName: '', version: '', githubToken: '' }));
+    mockGetInput = vi.fn(createMockGetInput({ chartName: '', version: '', githubToken: '', targetRepo: '' }));
     (core.getInput as unknown) = mockGetInput;
     await run();
     expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Missing required inputs'));
+  });
+
+  it('should fail if target-repo is not in owner/repo format (missing slash)', async () => {
+    mockGetInput = vi.fn(createMockGetInput({ targetRepo: 'invalidrepo' }));
+    (core.getInput as unknown) = mockGetInput;
+    await run();
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid target-repo input'));
+  });
+
+  it('should fail if target-repo is empty owner', async () => {
+    mockGetInput = vi.fn(createMockGetInput({ targetRepo: '/repo' }));
+    (core.getInput as unknown) = mockGetInput;
+    await run();
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid target-repo input'));
+  });
+
+  it('should fail if target-repo is empty repo', async () => {
+    mockGetInput = vi.fn(createMockGetInput({ targetRepo: 'owner/' }));
+    (core.getInput as unknown) = mockGetInput;
+    await run();
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid target-repo input'));
   });
 
   it('should not open PR if no charts require updating', async () => {
