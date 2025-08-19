@@ -31311,7 +31311,7 @@ async function updateFilesInBranch(octokit, owner, repo, branchName, dependency,
     }
   }
 }
-async function createPullRequest(octokit, owner, repo, branchName, chartsUpdated, dependencyName, newVersion, baseBranch, fileUpdates) {
+async function createPullRequest(octokit, owner, repo, branchName, dependencyName, newVersion, baseBranch, fileUpdates) {
   const chartList = fileUpdates.map(({ path: path2, oldVersion }) => {
     const chart = path2.split("/")[0];
     const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: ${oldVersion})` : "";
@@ -31378,12 +31378,28 @@ async function run() {
       (0, import_core.info)(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
       return;
     }
-    const chartsLabel = targetChartPrefix ? `-${targetChartPrefix}*` : "";
-    const branchName = `update-helm-chart${chartsLabel}-${chartName}-${version}`;
-    await createBranch(octokit, owner, repo, branch, branchName);
-    await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, fileUpdates);
-    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), chartName, version, branch, fileUpdates);
-    (0, import_core.info)(`Successfully created PR to update dependency '${chartName}' to version ${version} in charts: ${Array.from(updatedCharts).join(", ")}`);
+    for (const chartDir of updatedCharts) {
+      const chartFileUpdates = fileUpdates.filter((fu) => fu.path.startsWith(`${chartDir}/`));
+      if (chartFileUpdates.length === 0) {
+        (0, import_core.warning)(`No file updates found for chart directory '${chartDir}', skipping PR.`);
+        continue;
+      }
+      const chartsLabel = targetChartPrefix ? `-${targetChartPrefix}*` : "";
+      const branchName = `update-helm-chart${chartsLabel}-${chartName}-${version}-${chartDir}`;
+      await createBranch(octokit, owner, repo, branch, branchName);
+      await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, chartFileUpdates);
+      await createPullRequest(
+        octokit,
+        owner,
+        repo,
+        branchName,
+        chartName,
+        version,
+        branch,
+        chartFileUpdates
+      );
+      (0, import_core.info)(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart: ${chartDir}`);
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     (0, import_core.setFailed)(`Action failed with error: ${errorMessage}`);

@@ -4,7 +4,7 @@ import fs from 'fs';
 import { describe, it, expect, vi, beforeEach, MockInstance } from 'vitest';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { run, getFileSha, updateChartYamlDependency, updateHelmfileReleaseVersion, getChartFilesWithDirs } from '../main.js';
+import { run, getFileSha, updateFilesInBranch, updateChartYamlDependency, updateHelmfileReleaseVersion, getChartFilesWithDirs } from '../main.js';
 import type { ActionInputs } from '../main.js';
 
 vi.mock('@actions/core');
@@ -217,19 +217,38 @@ describe('update-chart-dependency Action', () => {
     expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('No charts required updating'));
   });
 
-  it('should create PR if chart dependency is updated', async () => {
-    const mockDirent = makeDirent('chart');
-    readDirSyncSpy.mockImplementation(() => [mockDirent]);
+  it('should execute without error if getFileSha returns undefined', async () => {
+    // Arrange
+    const octokit = {
+      rest: {
+        repos: {
+          getContent: vi.fn().mockResolvedValue({ data: {} }), // No sha property
+          createOrUpdateFileContents: vi.fn().mockResolvedValue({}),
+        },
+      },
+    } as unknown as Parameters<typeof updateFilesInBranch>[0];
+    const owner = 'test-owner';
+    const repo = 'test-repo';
+    const branchName = 'test-branch';
+    const dependency = 'test-dep';
+    const newVersion = '2.0.0';
+    const fileUpdates = [{ path: 'chartA/Chart.yaml', content: 'content', oldVersion: '1.0.0' }];
+    await updateFilesInBranch(octokit, owner, repo, branchName, dependency, newVersion, fileUpdates);
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('should create a PR for each updated chart directory', async () => {
+    const mockDirent1 = makeDirent('chartA');
+    const mockDirent2 = makeDirent('chartB');
+    readDirSyncSpy.mockImplementation(() => [mockDirent1, mockDirent2]);
     existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
-      // Only Chart.yaml exists for chart
       if (typeof filePath === 'string') {
-        return filePath === '/workspace/chart/Chart.yaml';
+        return filePath === '/workspace/chartA/Chart.yaml' || filePath === '/workspace/chartB/Chart.yaml';
       }
       return false;
     });
     readFileSyncSpy.mockImplementation((filePath: fs.PathOrFileDescriptor) => {
-      // Chart.yaml contains outdated version for test-service
-      if (typeof filePath === 'string' && filePath === '/workspace/chart/Chart.yaml') {
+      if (typeof filePath === 'string' && filePath.endsWith('Chart.yaml')) {
         return [
           'apiVersion: v2',
           'name: chart',
@@ -243,9 +262,29 @@ describe('update-chart-dependency Action', () => {
       }
       return '';
     });
+    const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
+    const createPullRequest = vi.fn().mockResolvedValue({});
+    mockGetOctokit = vi.fn(() => ({
+      rest: {
+        git: {
+          getRef: vi.fn().mockResolvedValue({ data: { object: { sha: 'base-sha' } } }),
+          createRef: vi.fn().mockResolvedValue({}),
+        },
+        repos: {
+          getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }),
+          createOrUpdateFileContents,
+        },
+        pulls: {
+          create: createPullRequest,
+        },
+      },
+    }));
+    (github.getOctokit as unknown) = mockGetOctokit;
     await run();
     expect(mockGetOctokit).toHaveBeenCalledWith('ghp_testtoken');
-    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('Successfully created PR'));
+    // Should create PR for each chart directory
+    expect(createPullRequest).toHaveBeenCalledTimes(2);
+    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('Successfully created PR to update dependency'));
   });
 
   it('should warn if chart processing fails', async () => {
@@ -323,17 +362,18 @@ describe('update-chart-dependency Action', () => {
     expect(result).toEqual([]);
   });
 
-  it('should include old and new version in commit message when updating dependency', async () => {
-    const mockDirent = makeDirent('chart');
-    readDirSyncSpy.mockImplementation(() => [mockDirent]);
+  it('should include old and new version in commit message for each chart PR', async () => {
+    const mockDirent1 = makeDirent('chartA');
+    const mockDirent2 = makeDirent('chartB');
+    readDirSyncSpy.mockImplementation(() => [mockDirent1, mockDirent2]);
     existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
       if (typeof filePath === 'string') {
-        return filePath === '/workspace/chart/Chart.yaml';
+        return filePath === '/workspace/chartA/Chart.yaml' || filePath === '/workspace/chartB/Chart.yaml';
       }
       return false;
     });
     readFileSyncSpy.mockImplementation((filePath: fs.PathOrFileDescriptor) => {
-      if (typeof filePath === 'string' && filePath === '/workspace/chart/Chart.yaml') {
+      if (typeof filePath === 'string' && filePath.endsWith('Chart.yaml')) {
         return [
           'apiVersion: v2',
           'name: chart',
@@ -366,6 +406,7 @@ describe('update-chart-dependency Action', () => {
     }));
     (github.getOctokit as unknown) = mockGetOctokit;
     await run();
+    // Should include old and new version in commit message for each chart
     expect(createOrUpdateFileContents).toHaveBeenCalledWith(
       expect.objectContaining({
         message: expect.stringContaining('from version 0.0.1 to 1.2.3') as unknown as string,
@@ -373,17 +414,18 @@ describe('update-chart-dependency Action', () => {
     );
   });
 
-  it('should include old version in PR body for updated chart', async () => {
-    const mockDirent = makeDirent('chart');
-    readDirSyncSpy.mockImplementation(() => [mockDirent]);
+  it('should include old version in PR body for each updated chart', async () => {
+    const mockDirent1 = makeDirent('chartA');
+    const mockDirent2 = makeDirent('chartB');
+    readDirSyncSpy.mockImplementation(() => [mockDirent1, mockDirent2]);
     existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
       if (typeof filePath === 'string') {
-        return filePath === '/workspace/chart/Chart.yaml';
+        return filePath === '/workspace/chartA/Chart.yaml' || filePath === '/workspace/chartB/Chart.yaml';
       }
       return false;
     });
     readFileSyncSpy.mockImplementation((filePath: fs.PathOrFileDescriptor) => {
-      if (typeof filePath === 'string' && filePath === '/workspace/chart/Chart.yaml') {
+      if (typeof filePath === 'string' && filePath.endsWith('Chart.yaml')) {
         return [
           'apiVersion: v2',
           'name: chart',
@@ -416,11 +458,14 @@ describe('update-chart-dependency Action', () => {
     }));
     (github.getOctokit as unknown) = mockGetOctokit;
     await run();
-    // The PR body should include the old version in the markdown list
-    const prCall = createPullRequest.mock.calls[0]?.[0] as { body: string };
-    const prBody = prCall.body;
-    expect(prCall).toBeDefined();
-    expect(prBody).toContain('old version: 0.0.1');
-    expect(prBody).toContain('- `chart`');
+    // The PR body should include the old version for each chart
+    expect(createPullRequest).toHaveBeenCalledTimes(2);
+    for (let i = 0; i < 2; i++) {
+      const prCall = createPullRequest.mock.calls[i]?.[0] as { body: string };
+      const prBody = prCall.body;
+      expect(prCall).toBeDefined();
+      expect(prBody).toContain('old version: 0.0.1');
+      expect(prBody).toMatch(/- `chart[AB]`/);
+    }
   });
 });

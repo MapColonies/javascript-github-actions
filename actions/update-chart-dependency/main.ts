@@ -349,7 +349,6 @@ async function createPullRequest(
   owner: string,
   repo: string,
   branchName: string,
-  chartsUpdated: string[],
   dependencyName: string,
   newVersion: string,
   baseBranch: string,
@@ -454,15 +453,22 @@ async function run(): Promise<void> {
       return;
     }
 
-    // Compose PR branch name and label (include prefix if provided)
-    const chartsLabel = targetChartPrefix ? `-${targetChartPrefix}*` : '';
-    const branchName = `update-helm-chart${chartsLabel}-${chartName}-${version}`;
+    // Open a PR for each updated chart directory separately
+    for (const chartDir of updatedCharts) {
+      // Filter fileUpdates for this chartDir
+      const chartFileUpdates = fileUpdates.filter((fu) => fu.path.startsWith(`${chartDir}/`));
+      if (chartFileUpdates.length === 0) {
+        warning(`No file updates found for chart directory '${chartDir}', skipping PR.`);
+        continue;
+      }
+      const chartsLabel = targetChartPrefix ? `-${targetChartPrefix}*` : '';
+      const branchName = `update-helm-chart${chartsLabel}-${chartName}-${version}-${chartDir}`;
 
-    await createBranch(octokit, owner, repo, branch, branchName);
-    await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, fileUpdates);
-    await createPullRequest(octokit, owner, repo, branchName, Array.from(updatedCharts), chartName, version, branch, fileUpdates);
-
-    info(`Successfully created PR to update dependency '${chartName}' to version ${version} in charts: ${Array.from(updatedCharts).join(', ')}`);
+      await createBranch(octokit, owner, repo, branch, branchName);
+      await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, chartFileUpdates);
+      await createPullRequest(octokit, owner, repo, branchName, chartName, version, branch, chartFileUpdates);
+      info(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart: ${chartDir}`);
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     setFailed(`Action failed with error: ${errorMessage}`);
