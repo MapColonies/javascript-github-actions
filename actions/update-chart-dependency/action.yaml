@@ -15,6 +15,9 @@ inputs:
   github-token:
     description: 'GitHub token for authentication.'
     required: true
+  target-repo:
+    description: 'Repository to update the chart in (format: owner/repo).'
+    required: true
   target-chart-prefix:
     description: 'Prefix to filter chart directories. Only charts whose directory starts with this prefix will be updated.'
     required: false
