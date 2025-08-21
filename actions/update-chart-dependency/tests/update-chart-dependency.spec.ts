@@ -71,6 +71,34 @@ describe('update-chart-dependency Action', () => {
   let readDirSyncSpy: MockInstance;
   let existsSyncSpy: MockInstance;
 
+  /**
+   * @description Helper to mock readDirSync for flat chart directories
+   * @param {string[]} chartDirs - List of chart directory names
+   */
+  function mockFlatChartDirs(chartDirs: string[]): void {
+    readDirSyncSpy.mockImplementation((dirPath: string) => {
+      if (dirPath === '/workspace') {
+        return chartDirs.map((name) => makeDirent(name));
+      }
+      // No subdirectories
+      return [];
+    });
+  }
+
+  /**
+   * @description Helper to mock existsSync for flat chart directories
+   * @param {string[]} chartDirs - List of chart directory names
+   * @param {string[]} fileNames - List of file names to exist in each chart directory
+   */
+  function mockFlatChartExists(chartDirs: string[], fileNames: string[]): void {
+    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
+      if (typeof filePath === 'string') {
+        return chartDirs.some((dir) => fileNames.some((file) => filePath === `/workspace/${dir}/${file}`));
+      }
+      return false;
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetInput = vi.fn(createMockGetInput());
@@ -209,9 +237,8 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should not open PR if no charts require updating', async () => {
-    const mockDirent = makeDirent('chart');
-    readDirSyncSpy.mockImplementation(() => [mockDirent]);
-    existsSyncSpy.mockReturnValue(false);
+    mockFlatChartDirs(['chart']);
+    mockFlatChartExists(['chart'], ['Chart.yaml']);
     readFileSyncSpy.mockReturnValue('dependencies:\n  - name: test-service\n    version: 1.2.3');
     await run();
     expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('No charts required updating'));
@@ -238,15 +265,8 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should create a PR for each updated chart directory', async () => {
-    const mockDirent1 = makeDirent('chartA');
-    const mockDirent2 = makeDirent('chartB');
-    readDirSyncSpy.mockImplementation(() => [mockDirent1, mockDirent2]);
-    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
-      if (typeof filePath === 'string') {
-        return filePath === '/workspace/chartA/Chart.yaml' || filePath === '/workspace/chartB/Chart.yaml';
-      }
-      return false;
-    });
+    mockFlatChartDirs(['chartA', 'chartB']);
+    mockFlatChartExists(['chartA', 'chartB'], ['Chart.yaml']);
     readFileSyncSpy.mockImplementation((filePath: fs.PathOrFileDescriptor) => {
       if (typeof filePath === 'string' && filePath.endsWith('Chart.yaml')) {
         return [
@@ -288,8 +308,7 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should warn if chart processing fails', async () => {
-    const mockDirent = makeDirent('chart');
-    readDirSyncSpy.mockImplementation(() => [mockDirent]);
+    mockFlatChartDirs(['chart']);
     existsSyncSpy.mockReturnValue(true);
     readFileSyncSpy.mockImplementation(() => {
       throw new Error('read error');
@@ -320,8 +339,7 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should return chart and helmfile paths for matching directories', () => {
-    const mockDirent = makeDirent('chart');
-    readDirSyncSpy.mockReturnValue([mockDirent]);
+    mockFlatChartDirs(['chart']);
     existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
       if (typeof filePath === 'string') {
         // Simulate all four file types exist
@@ -341,10 +359,13 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should filter directories by prefix', () => {
-    const mockDirent1 = makeDirent('foo-service');
-    const mockDirent2 = makeDirent('bar-service');
-    readDirSyncSpy.mockReturnValue([mockDirent1, mockDirent2]);
-    existsSyncSpy.mockReturnValue(true);
+    mockFlatChartDirs(['foo-service', 'bar-service']);
+    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
+      if (typeof filePath === 'string') {
+        return filePath === '/workspace/foo-service/Chart.yaml' || filePath === '/workspace/bar-service/Chart.yaml';
+      }
+      return false;
+    });
     const result = getChartFilesWithDirs('/workspace', 'foo');
     expect(result.every((r) => r.chartDir.startsWith('foo'))).toBe(true);
   });
@@ -363,15 +384,8 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should include old and new version in commit message for each chart PR', async () => {
-    const mockDirent1 = makeDirent('chartA');
-    const mockDirent2 = makeDirent('chartB');
-    readDirSyncSpy.mockImplementation(() => [mockDirent1, mockDirent2]);
-    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
-      if (typeof filePath === 'string') {
-        return filePath === '/workspace/chartA/Chart.yaml' || filePath === '/workspace/chartB/Chart.yaml';
-      }
-      return false;
-    });
+    mockFlatChartDirs(['chartA', 'chartB']);
+    mockFlatChartExists(['chartA', 'chartB'], ['Chart.yaml']);
     readFileSyncSpy.mockImplementation((filePath: fs.PathOrFileDescriptor) => {
       if (typeof filePath === 'string' && filePath.endsWith('Chart.yaml')) {
         return [
@@ -415,15 +429,8 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should include old version in PR body for each updated chart', async () => {
-    const mockDirent1 = makeDirent('chartA');
-    const mockDirent2 = makeDirent('chartB');
-    readDirSyncSpy.mockImplementation(() => [mockDirent1, mockDirent2]);
-    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
-      if (typeof filePath === 'string') {
-        return filePath === '/workspace/chartA/Chart.yaml' || filePath === '/workspace/chartB/Chart.yaml';
-      }
-      return false;
-    });
+    mockFlatChartDirs(['chartA', 'chartB']);
+    mockFlatChartExists(['chartA', 'chartB'], ['Chart.yaml']);
     readFileSyncSpy.mockImplementation((filePath: fs.PathOrFileDescriptor) => {
       if (typeof filePath === 'string' && filePath.endsWith('Chart.yaml')) {
         return [
@@ -467,5 +474,47 @@ describe('update-chart-dependency Action', () => {
       expect(prBody).toContain('old version: 0.0.1');
       expect(prBody).toMatch(/- `chart[AB]`/);
     }
+  });
+
+  it('should return chart and helmfile paths for nested directories recursively', () => {
+    // Simulate nested directory structure
+    const mockDirentChart = makeDirent('chart');
+    const mockDirentNested = makeDirent('nested');
+    const mockDirentSubchart = makeDirent('subchart');
+    readDirSyncSpy.mockImplementation((dirPath: string) => {
+      if (dirPath === '/workspace') {
+        return [mockDirentChart, mockDirentNested];
+      }
+      if (dirPath === '/workspace/nested') {
+        return [mockDirentSubchart];
+      }
+      // subchart contains files
+      if (dirPath === '/workspace/nested/subchart') {
+        return [];
+      }
+      // chart contains files
+      if (dirPath === '/workspace/chart') {
+        return [];
+      }
+      return [];
+    });
+    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
+      if (typeof filePath === 'string') {
+        return (
+          filePath === '/workspace/chart/Chart.yaml' ||
+          filePath === '/workspace/chart/helmfile.yaml' ||
+          filePath === '/workspace/nested/subchart/Chart.yaml' ||
+          filePath === '/workspace/nested/subchart/helmfile.yaml'
+        );
+      }
+      return false;
+    });
+    const result = getChartFilesWithDirs('/workspace', '');
+    expect(result).toEqual([
+      { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yaml' },
+      { chartDir: 'chart', absFilePath: '/workspace/chart/helmfile.yaml' },
+      { chartDir: 'nested/subchart', absFilePath: '/workspace/nested/subchart/Chart.yaml' },
+      { chartDir: 'nested/subchart', absFilePath: '/workspace/nested/subchart/helmfile.yaml' },
+    ]);
   });
 });

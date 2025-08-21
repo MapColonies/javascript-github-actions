@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'yaml';
 import { getInput, setFailed, info, warning } from '@actions/core';
-import { getOctokit, context as githubContext } from '@actions/github';
+import { getOctokit } from '@actions/github';
 
 /**
  * @typedef ActionInputs
@@ -83,7 +83,7 @@ const DEFAULT_BASE_BRANCH = 'master' as const;
 
 /**
  * @description Get action inputs from GitHub Actions runtime.
- * @returns {ActionInputs}
+ * @returns {ActionInputs} Action inputs object
  */
 function getInputs(): ActionInputs {
   const chartName = getInput('chart-name');
@@ -113,7 +113,7 @@ function findChartFiles(workspace: string, chartDir: string): string[] {
  * @param {string} filePath - Path to Chart.yaml
  * @param {string} dependencyName - Dependency / service to update
  * @param {string} version - New version
- * @returns {UpdateResult}
+ * @returns {UpdateResult} Update result object
  */
 function updateChartYamlDependency(filePath: string, dependencyName: string, version: string): UpdateResult {
   const fileContent = fs.readFileSync(filePath, 'utf8');
@@ -151,7 +151,7 @@ function updateChartYamlDependency(filePath: string, dependencyName: string, ver
  * @param {string} filePath - Path to helmfile.yaml
  * @param {string} releaseName - Release / service to update
  * @param {string} version - New version
- * @returns {UpdateResult}
+ * @returns {UpdateResult} Update result object
  */
 function updateHelmfileReleaseVersion(filePath: string, releaseName: string, version: string): UpdateResult {
   const fileContent = fs.readFileSync(filePath, 'utf8');
@@ -214,6 +214,13 @@ function getChartFilesWithDirs(workspace: string, targetChartPrefix: string): { 
     for (const absFilePath of files) {
       chartFilesWithDirs.push({ chartDir: dir, absFilePath });
     }
+
+    const subDir = path.join(workspace, dir);
+    const subChartFilesWithDirs = getChartFilesWithDirs(subDir, targetChartPrefix).map((file) => ({
+      chartDir: path.join(dir, file.chartDir),
+      absFilePath: file.absFilePath,
+    }));
+    chartFilesWithDirs.push(...subChartFilesWithDirs);
   }
   return chartFilesWithDirs;
 }
@@ -257,7 +264,7 @@ async function getFileSha(
  * @param {string} repo - Repository name
  * @param {string} baseBranch - Base branch name
  * @param {string} newBranch - New branch name
- * @returns {Promise<void>}
+ * @returns {Promise<void>} Promise that resolves when branch is created
  */
 async function createBranch(
   octokit: ReturnType<typeof getOctokit>,
@@ -292,7 +299,7 @@ async function createBranch(
  * @param {string} dependency - Dependency name
  * @param {string} newVersion - New version
  * @param {{ path: string; content: string }[]} fileUpdates - Array of file updates
- * @returns {Promise<void>}
+ * @returns {Promise<void>} Promise that resolves when files are updated
  */
 async function updateFilesInBranch(
   octokit: ReturnType<typeof getOctokit>,
@@ -337,12 +344,11 @@ async function updateFilesInBranch(
  * @param {string} owner - Repository owner
  * @param {string} repo - Repository name
  * @param {string} branchName - Branch name
- * @param {string[]} chartsUpdated - List of updated chart directories
  * @param {string} dependencyName - Dependency name
  * @param {string} newVersion - New chart version
  * @param {string} baseBranch - Base branch name
  * @param {FileUpdate[]} fileUpdates - List of updated charts and their old versions
- * @returns {Promise<void>}
+ * @returns {Promise<void>} Promise that resolves when PR is created
  */
 async function createPullRequest(
   octokit: ReturnType<typeof getOctokit>,
@@ -383,7 +389,7 @@ async function createPullRequest(
 
 /**
  * Main action runner for the update-chart-dependency GitHub Action.
- * @returns {Promise<void>}
+ * @returns {Promise<void>} Promise that resolves when action completes
  */
 async function run(): Promise<void> {
   try {

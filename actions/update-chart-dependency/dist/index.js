@@ -31249,6 +31249,12 @@ function getChartFilesWithDirs(workspace, targetChartPrefix) {
     for (const absFilePath of files) {
       chartFilesWithDirs.push({ chartDir: dir, absFilePath });
     }
+    const subDir = import_path.default.join(workspace, dir);
+    const subChartFilesWithDirs = getChartFilesWithDirs(subDir, targetChartPrefix).map((file) => ({
+      chartDir: import_path.default.join(dir, file.chartDir),
+      absFilePath: file.absFilePath
+    }));
+    chartFilesWithDirs.push(...subChartFilesWithDirs);
   }
   return chartFilesWithDirs;
 }
