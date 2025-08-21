@@ -18,9 +18,6 @@ inputs:
   target-repo:
     description: 'Repository to update the chart in (format: owner/repo).'
     required: true
-  target-chart-prefix:
-    description: 'Prefix to filter chart directories. Only charts whose directory starts with this prefix will be updated.'
-    required: false
   branch:
     description: 'Branch to base the PR on (default: master).'
     required: false

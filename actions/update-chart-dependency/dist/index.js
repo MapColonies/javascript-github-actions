@@ -31174,9 +31174,8 @@ function getInputs() {
   const version = (0, import_core.getInput)("version");
   const githubToken = (0, import_core.getInput)("github-token");
   const targetRepo = (0, import_core.getInput)("target-repo");
-  const targetChartPrefix = (0, import_core.getInput)("target-chart-prefix");
   const branch = (0, import_core.getInput)("branch") || DEFAULT_BASE_BRANCH;
-  return { chartName, version, githubToken, targetRepo, targetChartPrefix, branch };
+  return { chartName, version, githubToken, targetRepo, branch };
 }
 function findChartFiles(workspace, chartDir) {
   const files = [CHART_FILE_NAME, HELMFILE_NAME].flatMap((name) => ["yaml", "yml"].map((ext) => import_path.default.join(workspace, chartDir, `${name}.${ext}`))).filter((file) => import_fs.default.existsSync(file));
@@ -31233,7 +31232,7 @@ function updateHelmfileReleaseVersion(filePath, releaseName, version) {
   const newContent = import_yaml.default.stringify(helmfile);
   return { updated: true, oldVersion, newContent };
 }
-function getChartFilesWithDirs(workspace, targetChartPrefix) {
+function getChartFilesWithDirs(workspace) {
   const chartDirents = import_fs.default.readdirSync(workspace, { withFileTypes: true });
   const chartFilesWithDirs = [];
   for (const dirent of chartDirents) {
@@ -31241,16 +31240,12 @@ function getChartFilesWithDirs(workspace, targetChartPrefix) {
       continue;
     }
     const dir = typeof dirent.name === "string" ? dirent.name : dirent.name.toString();
-    const hasPrefix = targetChartPrefix === "" || dir.startsWith(targetChartPrefix);
-    if (!hasPrefix) {
-      continue;
-    }
     const files = findChartFiles(workspace, dir);
     for (const absFilePath of files) {
       chartFilesWithDirs.push({ chartDir: dir, absFilePath });
     }
     const subDir = import_path.default.join(workspace, dir);
-    const subChartFilesWithDirs = getChartFilesWithDirs(subDir, targetChartPrefix).map((file) => ({
+    const subChartFilesWithDirs = getChartFilesWithDirs(subDir).map((file) => ({
       chartDir: import_path.default.join(dir, file.chartDir),
       absFilePath: file.absFilePath
     }));
@@ -31337,7 +31332,7 @@ async function createPullRequest(octokit, owner, repo, branchName, dependencyNam
 }
 async function run() {
   try {
-    const { chartName, version, githubToken, targetRepo, targetChartPrefix, branch } = getInputs();
+    const { chartName, version, githubToken, targetRepo, branch } = getInputs();
     const missingInputs = !chartName || !version || !githubToken || !targetRepo;
     if (missingInputs) {
       (0, import_core.setFailed)("Missing required inputs: chart-name, version, github-token, target-repo");
@@ -31352,7 +31347,7 @@ async function run() {
       return;
     }
     const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
-    const chartFilesWithDirs = getChartFilesWithDirs(workspace, targetChartPrefix);
+    const chartFilesWithDirs = getChartFilesWithDirs(workspace);
     if (chartFilesWithDirs.length === 0) {
       (0, import_core.info)(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
       return;
@@ -31390,8 +31385,7 @@ async function run() {
         (0, import_core.warning)(`No file updates found for chart directory '${chartDir}', skipping PR.`);
         continue;
       }
-      const chartsLabel = targetChartPrefix ? `-${targetChartPrefix}*` : "";
-      const branchName = `update-helm-chart${chartsLabel}-${chartName}-${version}-${chartDir}`;
+      const branchName = `update-helm-chart-${chartName}-${version}-${chartDir}`;
       await createBranch(octokit, owner, repo, branch, branchName);
       await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, chartFileUpdates);
       await createPullRequest(octokit, owner, repo, branchName, chartName, version, branch, chartFileUpdates);

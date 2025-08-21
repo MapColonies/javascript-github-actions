@@ -39,8 +39,6 @@ const createMockGetInput = (inputs: Partial<ActionInputs> = {}) => {
         return inputs.githubToken ?? 'ghp_testtoken';
       case 'target-repo':
         return inputs.targetRepo ?? 'test-owner/test-repo';
-      case 'target-chart-prefix':
-        return inputs.targetChartPrefix ?? '';
       case 'branch':
         return inputs.branch ?? 'master';
       default:
@@ -349,7 +347,7 @@ describe('update-chart-dependency Action', () => {
       }
       return false;
     });
-    const result = getChartFilesWithDirs('/workspace', '');
+    const result = getChartFilesWithDirs('/workspace');
     expect(result).toEqual([
       { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yaml' },
       { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yml' },
@@ -358,28 +356,16 @@ describe('update-chart-dependency Action', () => {
     ]);
   });
 
-  it('should filter directories by prefix', () => {
-    mockFlatChartDirs(['foo-service', 'bar-service']);
-    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
-      if (typeof filePath === 'string') {
-        return filePath === '/workspace/foo-service/Chart.yaml' || filePath === '/workspace/bar-service/Chart.yaml';
-      }
-      return false;
-    });
-    const result = getChartFilesWithDirs('/workspace', 'foo');
-    expect(result.every((r) => r.chartDir.startsWith('foo'))).toBe(true);
-  });
-
   it('should return empty array if no directories match', () => {
     readDirSyncSpy.mockReturnValue([]);
-    const result = getChartFilesWithDirs('/workspace', '');
+    const result = getChartFilesWithDirs('/workspace');
     expect(result).toEqual([]);
   });
 
   it('should skip non-directories', () => {
     const mockDirent = makeDirent('file.txt', false);
     readDirSyncSpy.mockReturnValue([mockDirent]);
-    const result = getChartFilesWithDirs('/workspace', '');
+    const result = getChartFilesWithDirs('/workspace');
     expect(result).toEqual([]);
   });
 
@@ -509,7 +495,7 @@ describe('update-chart-dependency Action', () => {
       }
       return false;
     });
-    const result = getChartFilesWithDirs('/workspace', '');
+    const result = getChartFilesWithDirs('/workspace');
     expect(result).toEqual([
       { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yaml' },
       { chartDir: 'chart', absFilePath: '/workspace/chart/helmfile.yaml' },

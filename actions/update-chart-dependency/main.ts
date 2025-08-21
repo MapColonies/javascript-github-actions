@@ -23,7 +23,6 @@ interface ActionInputs {
   readonly version: string;
   readonly githubToken: string;
   readonly targetRepo: string;
-  readonly targetChartPrefix: string;
   readonly branch: string;
 }
 
@@ -90,9 +89,8 @@ function getInputs(): ActionInputs {
   const version = getInput('version');
   const githubToken = getInput('github-token');
   const targetRepo = getInput('target-repo');
-  const targetChartPrefix = getInput('target-chart-prefix');
   const branch = getInput('branch') || DEFAULT_BASE_BRANCH;
-  return { chartName, version, githubToken, targetRepo, targetChartPrefix, branch };
+  return { chartName, version, githubToken, targetRepo, branch };
 }
 
 /**
@@ -191,10 +189,9 @@ function updateHelmfileReleaseVersion(filePath: string, releaseName: string, ver
 /**
  * Collect all chart / helmfile file paths in the workspace, filtered by prefix.
  * @param {string} workspace - Workspace directory
- * @param {string} targetChartPrefix - Chart directory prefix filter
  * @returns {{ chartDir: string; absFilePath: string }[]} Array of chart directory and file path objects
  */
-function getChartFilesWithDirs(workspace: string, targetChartPrefix: string): { chartDir: string; absFilePath: string }[] {
+function getChartFilesWithDirs(workspace: string): { chartDir: string; absFilePath: string }[] {
   /**
    * @description Use Dirent objects for robust directory listing
    * @see https://nodejs.org/api/fs.html#fsreaddirsyncpath-options
@@ -206,17 +203,13 @@ function getChartFilesWithDirs(workspace: string, targetChartPrefix: string): { 
       continue;
     }
     const dir = typeof dirent.name === 'string' ? dirent.name : (dirent.name as Buffer).toString();
-    const hasPrefix = targetChartPrefix === '' || dir.startsWith(targetChartPrefix);
-    if (!hasPrefix) {
-      continue;
-    }
     const files = findChartFiles(workspace, dir);
     for (const absFilePath of files) {
       chartFilesWithDirs.push({ chartDir: dir, absFilePath });
     }
 
     const subDir = path.join(workspace, dir);
-    const subChartFilesWithDirs = getChartFilesWithDirs(subDir, targetChartPrefix).map((file) => ({
+    const subChartFilesWithDirs = getChartFilesWithDirs(subDir).map((file) => ({
       chartDir: path.join(dir, file.chartDir),
       absFilePath: file.absFilePath,
     }));
@@ -393,7 +386,7 @@ async function createPullRequest(
  */
 async function run(): Promise<void> {
   try {
-    const { chartName, version, githubToken, targetRepo, targetChartPrefix, branch } = getInputs();
+    const { chartName, version, githubToken, targetRepo, branch } = getInputs();
 
     const missingInputs = !chartName || !version || !githubToken || !targetRepo;
     if (missingInputs) {
@@ -416,8 +409,8 @@ async function run(): Promise<void> {
     // Determine workspace directory (GitHub Actions or local)
     const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
 
-    // Collect all chart/helmfile files to process, filtered by prefix if provided
-    const chartFilesWithDirs = getChartFilesWithDirs(workspace, targetChartPrefix);
+    // Collect all chart/helmfile files to process
+    const chartFilesWithDirs = getChartFilesWithDirs(workspace);
 
     if (chartFilesWithDirs.length === 0) {
       info(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
@@ -467,8 +460,7 @@ async function run(): Promise<void> {
         warning(`No file updates found for chart directory '${chartDir}', skipping PR.`);
         continue;
       }
-      const chartsLabel = targetChartPrefix ? `-${targetChartPrefix}*` : '';
-      const branchName = `update-helm-chart${chartsLabel}-${chartName}-${version}-${chartDir}`;
+      const branchName = `update-helm-chart-${chartName}-${version}-${chartDir}`;
 
       await createBranch(octokit, owner, repo, branch, branchName);
       await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, chartFileUpdates);

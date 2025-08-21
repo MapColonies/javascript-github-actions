@@ -32,14 +32,13 @@ flowchart TD
 
 ## Inputs
 
-| Name                  | Description                                                                                              | Required | Default  |
-| --------------------- | -------------------------------------------------------------------------------------------------------- | -------- | -------- |
-| `chart-name`          | Name of the dependency to update in Chart / helmfile yaml files.                                         | true     |          |
-| `version`             | New version to set for the dependency.                                                                   | true     |          |
-| `github-token`        | GitHub token for authentication.                                                                         | true     |          |
-| `target-repo`         | Target repository to open the PR in (format: owner/repo).                                                | true     |          |
-| `target-chart-prefix` | Prefix to filter chart directories. Only charts whose directory starts with this prefix will be updated. | false    |          |
-| `branch`              | Branch to base the PR on (e.g. `master`).                                                                | false    | `master` |
+| Name           | Description                                                      | Required | Default  |
+| -------------- | ---------------------------------------------------------------- | -------- | -------- |
+| `chart-name`   | Name of the dependency to update in Chart / helmfile yaml files. | true     |          |
+| `version`      | New version to set for the dependency.                           | true     |          |
+| `github-token` | GitHub token for authentication.                                 | true     |          |
+| `target-repo`  | Target repository to open the PR in (format: owner/repo).        | true     |          |
+| `branch`       | Branch to base the PR on (e.g. `master`).                        | false    | `master` |
 
 ## Usage
 
@@ -51,7 +50,6 @@ flowchart TD
     version: '1.2.3'
     github-token: ${{ secrets.GITHUB_TOKEN }}
     target-repo: 'owner/repo'
-    target-chart-prefix: 'myservice-'
     branch: 'master'
 ```
 
