@@ -210,28 +210,28 @@ describe('update-chart-dependency Action', () => {
     mockGetInput = vi.fn(createMockGetInput({ chartName: '', version: '', githubToken: '', targetRepo: '' }));
     (core.getInput as unknown) = mockGetInput;
     await run();
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Missing required inputs'));
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid action inputs:'));
   });
 
   it('should fail if target-repo is not in owner/repo format (missing slash)', async () => {
     mockGetInput = vi.fn(createMockGetInput({ targetRepo: 'invalidrepo' }));
     (core.getInput as unknown) = mockGetInput;
     await run();
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid target-repo input'));
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid action inputs:'));
   });
 
   it('should fail if target-repo is empty owner', async () => {
     mockGetInput = vi.fn(createMockGetInput({ targetRepo: '/repo' }));
     (core.getInput as unknown) = mockGetInput;
     await run();
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid target-repo input'));
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid action inputs:'));
   });
 
   it('should fail if target-repo is empty repo', async () => {
     mockGetInput = vi.fn(createMockGetInput({ targetRepo: 'owner/' }));
     (core.getInput as unknown) = mockGetInput;
     await run();
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid target-repo input'));
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Invalid action inputs:'));
   });
 
   it('should not open PR if no charts require updating', async () => {
@@ -333,7 +333,7 @@ describe('update-chart-dependency Action', () => {
     });
     (core.getInput as unknown) = mockGetInput;
     await run();
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Action failed with error:'));
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('forced error'));
   });
 
   it('should return chart and helmfile paths for matching directories', () => {

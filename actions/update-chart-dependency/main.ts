@@ -2,12 +2,29 @@
  * @file Main entry for the Helm chart dependency update GitHub Action.
  * @description Updates Helm chart and helmfile YAML files for dependencies and opens PRs.
  */
-
 import fs from 'fs';
 import path from 'path';
 import yaml from 'yaml';
 import { getInput, setFailed, info, warning } from '@actions/core';
 import { getOctokit } from '@actions/github';
+import { z } from 'zod';
+
+/** @constant {string} CHART_FILE_NAME - Chart filename prefix */
+const CHART_FILE_NAME = 'Chart' as const;
+/** @constant {string} HELMFILE_NAME - Helmfile filename prefix */
+const HELMFILE_NAME = 'helmfile' as const;
+/** @constant {string} PR_TITLE_PREFIX - PR title prefix for pull requests */
+const PR_TITLE_PREFIX = 'deps: update Helm dependencies: ' as const;
+/** @constant {string} DEFAULT_BASE_BRANCH - Default base branch for PRs */
+const DEFAULT_BASE_BRANCH = 'master' as const;
+
+const actionInputsSchema = z.object({
+  chartName: z.string().min(1, { message: 'chart-name is required' }),
+  version: z.string().min(1, { message: 'version is required' }),
+  githubToken: z.string().min(1, { message: 'github-token is required' }),
+  targetRepo: z.string().regex(/^[^/]+\/[^/]+$/, { message: 'target-repo must be in format owner/repo' }),
+  branch: z.string().min(1, { message: 'branch is required' }).default(DEFAULT_BASE_BRANCH),
+});
 
 /**
  * @typedef ActionInputs
@@ -15,7 +32,6 @@ import { getOctokit } from '@actions/github';
  * @property {string} version - New version to set
  * @property {string} githubToken - GitHub token for authentication
  * @property {string} targetRepo - Target repository to open the PR in (format: owner/repo)
- * @property {string} targetChartPrefix - Prefix to filter chart directories
  * @property {string} branch - Base branch for the PR
  */
 interface ActionInputs {
@@ -71,15 +87,6 @@ interface FileUpdate {
   oldVersion?: string;
 }
 
-/** @constant {string} CHART_FILE_NAME - Chart filename prefix */
-const CHART_FILE_NAME = 'Chart' as const;
-/** @constant {string} HELMFILE_NAME - Helmfile filename prefix */
-const HELMFILE_NAME = 'helmfile' as const;
-/** @constant {string} PR_TITLE_PREFIX - PR title prefix for pull requests */
-const PR_TITLE_PREFIX = 'deps: update Helm dependencies: ' as const;
-/** @constant {string} DEFAULT_BASE_BRANCH - Default base branch for PRs */
-const DEFAULT_BASE_BRANCH = 'master' as const;
-
 /**
  * @description Get action inputs from GitHub Actions runtime.
  * @returns {ActionInputs} Action inputs object
@@ -90,7 +97,13 @@ function getInputs(): ActionInputs {
   const githubToken = getInput('github-token');
   const targetRepo = getInput('target-repo');
   const branch = getInput('branch') || DEFAULT_BASE_BRANCH;
-  return { chartName, version, githubToken, targetRepo, branch };
+  const result = actionInputsSchema.safeParse({ chartName, version, githubToken, targetRepo, branch });
+  if (!result.success) {
+    // Compose error message from zod issues
+    const errorMsg = result.error.issues.map((issue) => issue.message).join('; ');
+    throw new Error(`Invalid action inputs: ${errorMsg}`);
+  }
+  return result.data;
 }
 
 /**
@@ -386,25 +399,20 @@ async function createPullRequest(
  */
 async function run(): Promise<void> {
   try {
-    const { chartName, version, githubToken, targetRepo, branch } = getInputs();
-
-    const missingInputs = !chartName || !version || !githubToken || !targetRepo;
-    if (missingInputs) {
-      setFailed('Missing required inputs: chart-name, version, github-token, target-repo');
+    let chartName: string, version: string, githubToken: string, targetRepo: string, branch: string;
+    try {
+      ({ chartName, version, githubToken, targetRepo, branch } = getInputs());
+    } catch (err) {
+      setFailed(err instanceof Error ? err.message : String(err));
       return;
     }
 
     // Initialize GitHub API client
     const octokit = getOctokit(githubToken);
 
-    // Parse targetRepo (format: owner/repo)
-    const [owner, repo] = targetRepo.split('/');
-    const isOwnerMissing = typeof owner !== 'string' || owner.trim() === '';
-    const isRepoMissing = typeof repo !== 'string' || repo.trim() === '';
-    if (isOwnerMissing || isRepoMissing) {
-      setFailed('Invalid target-repo input. Must be in format owner/repo, both must be non-empty');
-      return;
-    }
+    const repoParts = targetRepo.split('/');
+    const owner: string = (repoParts[0] ?? '').trim();
+    const repo: string = (repoParts[1] ?? '').trim();
 
     // Determine workspace directory (GitHub Actions or local)
     const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
