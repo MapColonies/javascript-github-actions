@@ -2,8 +2,10 @@
  * @file Main entry for the Helm chart dependency update GitHub Action.
  * @description Updates Helm chart and helmfile YAML files for dependencies and opens PRs.
  */
-import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import fs from 'fs';
+import fetch from 'node-fetch';
 import yaml from 'yaml';
 import { getInput, setFailed, info, warning } from '@actions/core';
 import { getOctokit } from '@actions/github';
@@ -104,6 +106,49 @@ function getInputs(): ActionInputs {
     throw new Error(`Invalid action inputs: ${errorMsg}`);
   }
   return result.data;
+}
+
+/**
+ * @description Recursively downloads a directory from a GitHub repo to a local temp directory using the GitHub API.
+ * @param octokit - GitHub client
+ * @param owner - Repository owner
+ * @param repo - Repository name
+ * @param ref - Branch or commit SHA
+ * @param remoteDir - Directory path in the repo ('' for root)
+ * @param localDir - Local directory to write to
+ * @returns {Promise<void>} Promise that resolves when done
+ */
+async function downloadRepoDir(
+  octokit: ReturnType<typeof getOctokit>,
+  owner: string,
+  repo: string,
+  ref: string,
+  remoteDir: string,
+  localDir: string
+): Promise<void> {
+  // List contents of the remote directory
+  const { data } = await octokit.rest.repos.getContent({
+    owner,
+    repo,
+    path: remoteDir,
+    ref,
+  });
+  if (!Array.isArray(data)) {
+    return;
+  }
+  for (const item of data) {
+    if (item.type === 'dir') {
+      const subLocalDir = path.join(localDir, item.name);
+      if (!fs.existsSync(subLocalDir)) {
+        fs.mkdirSync(subLocalDir);
+      }
+      await downloadRepoDir(octokit, owner, repo, ref, item.path, subLocalDir);
+    } else if (item.type === 'file' && typeof item.download_url === 'string') {
+      const response = await fetch(item.download_url);
+      const fileContent = await response.text();
+      fs.writeFileSync(path.join(localDir, item.name), fileContent, 'utf8');
+    }
+  }
 }
 
 /**
@@ -414,28 +459,27 @@ async function run(): Promise<void> {
     const owner: string = (repoParts[0] ?? '').trim();
     const repo: string = (repoParts[1] ?? '').trim();
 
-    // Determine workspace directory (GitHub Actions or local)
-    const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
+    // Download the root of the targetRepo to a temp directory
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chart-repo-'));
+    await downloadRepoDir(octokit, owner, repo, branch, '', tempDir);
 
-    // Collect all chart/helmfile files to process
-    const chartFilesWithDirs = getChartFilesWithDirs(workspace);
+    // Collect all chart / helmfile files to process
+    const chartFilesWithDirs = getChartFilesWithDirs(tempDir);
 
     if (chartFilesWithDirs.length === 0) {
       info(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
       return;
     }
 
-    const fileUpdates: FileUpdate[] = [];
-    const updatedCharts = new Set<string>();
-
-    // Iterate over all chart / helmfile files and attempt to update dependency version
+    // Main loop: for each chart/helmfile file, update, branch, commit, PR
+    let updatedAny = false;
     for (const { chartDir, absFilePath } of chartFilesWithDirs) {
       try {
         const fileName = path.basename(absFilePath);
         const relFilePath = `${chartDir}/${fileName}`;
         let updateResult: UpdateResult;
 
-        // Determine file type and call the appropriate update function
+        // 1. Update the file content if needed
         if (fileName.includes(CHART_FILE_NAME)) {
           updateResult = updateChartYamlDependency(absFilePath, chartName, version);
         } else if (fileName.includes(HELMFILE_NAME)) {
@@ -445,35 +489,29 @@ async function run(): Promise<void> {
         }
 
         const newContent = updateResult.newContent;
-        // If the file was updated, stage it for commit and mark the chart as updated
-        if (updateResult.updated && typeof newContent === 'string' && newContent.length > 0) {
-          fileUpdates.push({ path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion });
-          updatedCharts.add(chartDir);
+        if (!updateResult.updated || typeof newContent !== 'string' || newContent.length === 0) {
+          continue;
         }
+
+        // 2. Create a new branch and commit the changes
+        const branchName = `update-helm-chart-${chartName}-${version}-${chartDir}`;
+        await createBranch(octokit, owner, repo, branch, branchName);
+        await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, [
+          { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion },
+        ]);
+
+        // 3. Create a PR with the new changes
+        await createPullRequest(octokit, owner, repo, branchName, chartName, version, branch, [
+          { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion },
+        ]);
+        info(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart: ${chartDir}`);
+        updatedAny = true;
       } catch (chartError) {
         warning(`Failed to process chart '${chartDir}': ${chartError instanceof Error ? chartError.message : ''}`);
       }
     }
-
-    if (updatedCharts.size === 0) {
+    if (!updatedAny) {
       info(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
-      return;
-    }
-
-    // Open a PR for each updated chart directory separately
-    for (const chartDir of updatedCharts) {
-      // Filter fileUpdates for this chartDir
-      const chartFileUpdates = fileUpdates.filter((fu) => fu.path.startsWith(`${chartDir}/`));
-      if (chartFileUpdates.length === 0) {
-        warning(`No file updates found for chart directory '${chartDir}', skipping PR.`);
-        continue;
-      }
-      const branchName = `update-helm-chart-${chartName}-${version}-${chartDir}`;
-
-      await createBranch(octokit, owner, repo, branch, branchName);
-      await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, chartFileUpdates);
-      await createPullRequest(octokit, owner, repo, branchName, chartName, version, branch, chartFileUpdates);
-      info(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart: ${chartDir}`);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

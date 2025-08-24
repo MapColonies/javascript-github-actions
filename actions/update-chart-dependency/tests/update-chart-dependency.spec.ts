@@ -68,6 +68,7 @@ describe('update-chart-dependency Action', () => {
   let readFileSyncSpy: MockInstance;
   let readDirSyncSpy: MockInstance;
   let existsSyncSpy: MockInstance;
+  let tempDir: string;
 
   /**
    * @description Helper to mock readDirSync for flat chart directories
@@ -75,7 +76,7 @@ describe('update-chart-dependency Action', () => {
    */
   function mockFlatChartDirs(chartDirs: string[]): void {
     readDirSyncSpy.mockImplementation((dirPath: string) => {
-      if (dirPath === '/workspace') {
+      if (dirPath === tempDir) {
         return chartDirs.map((name) => makeDirent(name));
       }
       // No subdirectories
@@ -91,7 +92,7 @@ describe('update-chart-dependency Action', () => {
   function mockFlatChartExists(chartDirs: string[], fileNames: string[]): void {
     existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
       if (typeof filePath === 'string') {
-        return chartDirs.some((dir) => fileNames.some((file) => filePath === `/workspace/${dir}/${file}`));
+        return chartDirs.some((dir) => fileNames.some((file) => filePath === `${tempDir}/${dir}/${file}`));
       }
       return false;
     });
@@ -123,9 +124,9 @@ describe('update-chart-dependency Action', () => {
     readDirSyncSpy = vi.spyOn(fs, 'readdirSync');
     existsSyncSpy = vi.spyOn(fs, 'existsSync');
 
-    // GITHUB_WORKSPACE is an environment variable, not camelCase. This is intentional for mocking.
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    vi.stubGlobal('process', { env: { GITHUB_WORKSPACE: '/workspace' }, cwd: () => '/workspace' });
+    // Simulate temp directory for the downloaded repo
+    tempDir = '/tmp/chart-repo-test';
+    vi.spyOn(fs, 'mkdtempSync').mockReturnValue(tempDir);
     vi.stubGlobal('fs', fs);
     (core.getInput as unknown) = mockGetInput;
     (core.setFailed as unknown) = mockSetFailed;
@@ -347,25 +348,25 @@ describe('update-chart-dependency Action', () => {
       }
       return false;
     });
-    const result = getChartFilesWithDirs('/workspace');
+    const result = getChartFilesWithDirs(tempDir);
     expect(result).toEqual([
-      { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yaml' },
-      { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yml' },
-      { chartDir: 'chart', absFilePath: '/workspace/chart/helmfile.yaml' },
-      { chartDir: 'chart', absFilePath: '/workspace/chart/helmfile.yml' },
+      { chartDir: 'chart', absFilePath: `${tempDir}/chart/Chart.yaml` },
+      { chartDir: 'chart', absFilePath: `${tempDir}/chart/Chart.yml` },
+      { chartDir: 'chart', absFilePath: `${tempDir}/chart/helmfile.yaml` },
+      { chartDir: 'chart', absFilePath: `${tempDir}/chart/helmfile.yml` },
     ]);
   });
 
   it('should return empty array if no directories match', () => {
     readDirSyncSpy.mockReturnValue([]);
-    const result = getChartFilesWithDirs('/workspace');
+    const result = getChartFilesWithDirs(tempDir);
     expect(result).toEqual([]);
   });
 
   it('should skip non-directories', () => {
     const mockDirent = makeDirent('file.txt', false);
     readDirSyncSpy.mockReturnValue([mockDirent]);
-    const result = getChartFilesWithDirs('/workspace');
+    const result = getChartFilesWithDirs(tempDir);
     expect(result).toEqual([]);
   });
 
@@ -468,18 +469,18 @@ describe('update-chart-dependency Action', () => {
     const mockDirentNested = makeDirent('nested');
     const mockDirentSubchart = makeDirent('subchart');
     readDirSyncSpy.mockImplementation((dirPath: string) => {
-      if (dirPath === '/workspace') {
+      if (dirPath === tempDir) {
         return [mockDirentChart, mockDirentNested];
       }
-      if (dirPath === '/workspace/nested') {
+      if (dirPath === `${tempDir}/nested`) {
         return [mockDirentSubchart];
       }
       // subchart contains files
-      if (dirPath === '/workspace/nested/subchart') {
+      if (dirPath === `${tempDir}/nested/subchart`) {
         return [];
       }
       // chart contains files
-      if (dirPath === '/workspace/chart') {
+      if (dirPath === `${tempDir}/chart`) {
         return [];
       }
       return [];
@@ -487,20 +488,20 @@ describe('update-chart-dependency Action', () => {
     existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
       if (typeof filePath === 'string') {
         return (
-          filePath === '/workspace/chart/Chart.yaml' ||
-          filePath === '/workspace/chart/helmfile.yaml' ||
-          filePath === '/workspace/nested/subchart/Chart.yaml' ||
-          filePath === '/workspace/nested/subchart/helmfile.yaml'
+          filePath === `${tempDir}/chart/Chart.yaml` ||
+          filePath === `${tempDir}/chart/helmfile.yaml` ||
+          filePath === `${tempDir}/nested/subchart/Chart.yaml` ||
+          filePath === `${tempDir}/nested/subchart/helmfile.yaml`
         );
       }
       return false;
     });
-    const result = getChartFilesWithDirs('/workspace');
+    const result = getChartFilesWithDirs(tempDir);
     expect(result).toEqual([
-      { chartDir: 'chart', absFilePath: '/workspace/chart/Chart.yaml' },
-      { chartDir: 'chart', absFilePath: '/workspace/chart/helmfile.yaml' },
-      { chartDir: 'nested/subchart', absFilePath: '/workspace/nested/subchart/Chart.yaml' },
-      { chartDir: 'nested/subchart', absFilePath: '/workspace/nested/subchart/helmfile.yaml' },
+      { chartDir: 'chart', absFilePath: `${tempDir}/chart/Chart.yaml` },
+      { chartDir: 'chart', absFilePath: `${tempDir}/chart/helmfile.yaml` },
+      { chartDir: 'nested/subchart', absFilePath: `${tempDir}/nested/subchart/Chart.yaml` },
+      { chartDir: 'nested/subchart', absFilePath: `${tempDir}/nested/subchart/helmfile.yaml` },
     ]);
   });
 });
