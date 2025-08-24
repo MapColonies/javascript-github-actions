@@ -46023,18 +46023,9 @@ async function run() {
         await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version2, [
           { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
         ]);
-        await createPullRequest(
-          octokit,
-          owner,
-          repo,
-          branchName,
-          chartName,
-          version2,
-          branch,
-          [
-            { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
-          ]
-        );
+        await createPullRequest(octokit, owner, repo, branchName, chartName, version2, branch, [
+          { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
+        ]);
         (0, import_core7.info)(`Successfully created PR to update dependency '${chartName}' to version ${version2} in chart: ${chartDir}`);
         updatedAny = true;
       } catch (chartError) {

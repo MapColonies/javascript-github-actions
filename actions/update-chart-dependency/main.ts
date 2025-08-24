@@ -245,7 +245,7 @@ function updateHelmfileReleaseVersion(filePath: string, releaseName: string, ver
 }
 
 /**
- * Collect all chart / helmfile file paths in the workspace, filtered by prefix.
+ * Collect all chart / helmfile file paths in the workspace.
  * @param {string} workspace - Workspace directory
  * @returns {{ chartDir: string; absFilePath: string }[]} Array of chart directory and file path objects
  */
