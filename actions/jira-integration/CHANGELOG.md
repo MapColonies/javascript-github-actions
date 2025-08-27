@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2](https://github.com/MapColonies/javascript-github-actions/compare/jira-integration-v1.0.1...jira-integration-v1.0.2) (2025-08-27)
+
+
+### 📝 Documentation
+
+* **jira-integration:** update README.md ([#21](https://github.com/MapColonies/javascript-github-actions/issues/21)) ([7c4c543](https://github.com/MapColonies/javascript-github-actions/commit/7c4c543a18336c420fb0cd2aeb43aa99dd02236c))
+* **jira-integration:** update workflow types in README ([#15](https://github.com/MapColonies/javascript-github-actions/issues/15)) ([f3e2ff0](https://github.com/MapColonies/javascript-github-actions/commit/f3e2ff0cfd21252423edd3e0dc5c0243eb956f6e))
+
 ## [1.0.1](https://github.com/MapColonies/javascript-github-actions/compare/jira-integration-v1.0.0...jira-integration-v1.0.1) (2025-07-01)
 
 
