@@ -1,0 +1,23 @@
+name: 'Update Helm Chart Dependencies'
+description: 'Updates Chart.yaml for Helm charts and opens a PR with the changes.'
+
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
+
+inputs:
+  chart-name:
+    description: 'Name of the dependency to update in Chart / helmfile.'
+    required: true
+  version:
+    description: 'New version to set for the dependency.'
+    required: true
+  github-token:
+    description: 'GitHub token for authentication.'
+    required: true
+  target-repo:
+    description: 'Repository to update the chart in (format: owner/repo).'
+    required: true
+  branch:
+    description: 'Branch to base the PR on (default: master).'
+    required: false

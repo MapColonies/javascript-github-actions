@@ -30,6 +30,7 @@
     "@map-colonies/prettier-config": "0.0.1",
     "@map-colonies/tsconfig": "^1.0.1",
     "@total-typescript/shoehorn": "^0.1.2",
+    "@types/node-fetch": "^2.6.13",
     "@vitest/coverage-v8": "^3.2.3",
     "@vitest/ui": "^3.2.3",
     "commitlint": "^19.8.1",
@@ -46,6 +47,8 @@
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
-    "@actions/github": "^6.0.1"
+    "@actions/github": "^6.0.1",
+    "node-fetch": "^2.7.0",
+    "zod": "^4.0.17"
   }
 }
