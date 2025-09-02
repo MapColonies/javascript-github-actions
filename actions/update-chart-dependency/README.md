@@ -24,7 +24,7 @@ flowchart TD
 ## Features
 
 - Accepts a dependency service name and version as inputs.
-- Finds all chart directories (optionally filtered by prefix).
+- Finds all chart directories.
 - Updates the dependency version in each chart's `Chart` and `helmfile` yaml files if present.
 - Creates a new branch from a specified base branch.
 - Commits all changes and opens a PR with a summary of updated charts.
