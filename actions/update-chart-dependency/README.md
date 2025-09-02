@@ -1,33 +1,14 @@
 # Update Helm Chart Dependencies GitHub Action
 
-This GitHub Action updates the version of a specific dependency in the `Chart` and `helmfile` yaml files for one or more directories in your repository, creates a branch with the changes, and opens a pull request.
-
-## Action Operation Diagram
-
-```mermaid
-flowchart TD
-    A["Tag push in source repo (with Helm chart)"] -->|"GitHub Action triggered"| B
-    B["Checkout source repo"] --> C["Extract chart name & version from tag"]
-    C --> D["Clone target repo (with multiple chart / helmfile dirs)"]
-    D --> E["Scan all directories for Chart /helmfile yaml files"]
-    E --> F["Update dependency version for matching chart / helmfile"]
-    F --> G{"Any changes?"}
-    G -- No --> H["Exit: No update needed"]
-    G -- Yes --> I["Create branch, commit changes"]
-    I --> J["Open Pull Request to target repo"]
-    J --> K["Review & merge"]
-
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style J fill:#bbf,stroke:#333,stroke-width:2px
-```
+This GitHub Action updates the version of a specific dependency in the `Chart` and `helmfile` yaml files for one or more directories in a remote repository, and for each creates a dedicated branch with the chart changes and opens a pull request.
 
 ## Features
 
 - Accepts a dependency service name and version as inputs.
-- Finds all chart directories.
+- Finds all chart directories in a remote repository.
 - Updates the version of the specified chart in all Chart.yaml and helmfile.yaml files where it is listed as a dependency.
-- Creates a new branch from a specified base branch.
-- Commits all changes and opens a PR with a summary of updated charts.
+- Creates new branches from a specified base branch.
+- Creates a dedicated branch for each change and opens a PR with a summary of the update details.
 - Uses only Node.js built-in modules and the official GitHub Actions toolkit.
 
 ## Inputs
@@ -37,8 +18,8 @@ flowchart TD
 | `chart-name`   | Name of the dependency to update in Chart / helmfile yaml files. | true     |          |
 | `version`      | New version to set for the dependency.                           | true     |          |
 | `github-token` | GitHub token for authentication.                                 | true     |          |
-| `target-repo`  | Target repository to open the PR in (format: owner/repo).        | true     |          |
-| `branch`       | Branch to base the PR on (e.g. `master`).                        | false    | `master` |
+| `target-repo`  | Target repository to open the PRs in (format: owner/repo).       | true     |          |
+| `branch`       | Branch to base the PRs on (e.g. `master`).                       | false    | `master` |
 
 ## Usage
 
@@ -56,7 +37,7 @@ flowchart TD
 ## Notes
 
 - The action updates only the version of the specified dependency in each chart's `Chart` and `helmfile` yaml files.
-- The action opens a single PR for all updated charts.
+- The action opens a dedicated branch and PR for each updated chart.
 - If no charts require updating, no PR will be opened.
 
 ## License
