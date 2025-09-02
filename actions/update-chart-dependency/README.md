@@ -25,7 +25,7 @@ flowchart TD
 
 - Accepts a dependency service name and version as inputs.
 - Finds all chart directories.
-- Updates the dependency version in each chart's `Chart` and `helmfile` yaml files if present.
+- Updates the version of the specified chart in all Chart.yaml and helmfile.yaml files where it is listed as a dependency.
 - Creates a new branch from a specified base branch.
 - Commits all changes and opens a PR with a summary of updated charts.
 - Uses only Node.js built-in modules and the official GitHub Actions toolkit.
