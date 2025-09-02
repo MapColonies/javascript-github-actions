@@ -467,7 +467,7 @@ async function run(): Promise<void> {
     const chartFilesWithDirs = getChartFilesWithDirs(tempDir);
 
     if (chartFilesWithDirs.length === 0) {
-      info(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
+      info(`No charts found in ${targetRepo}.`);
       return;
     }
 

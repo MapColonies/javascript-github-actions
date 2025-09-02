@@ -243,6 +243,14 @@ describe('update-chart-dependency Action', () => {
     expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('No charts required updating'));
   });
 
+  it('should emit info message when no charts are found in the repo', async () => {
+    // Simulate no chart directories found
+    readDirSyncSpy.mockReturnValue([]);
+    existsSyncSpy.mockReturnValue(false);
+    await run();
+    expect(mockInfo).toHaveBeenCalledWith('No charts found in test-owner/test-repo.');
+  });
+
   it('should execute without error if getFileSha returns undefined', async () => {
     // Arrange
     const octokit = {

@@ -45998,7 +45998,7 @@ async function run() {
     await downloadRepoDir(octokit, owner, repo, branch, "", tempDir);
     const chartFilesWithDirs = getChartFilesWithDirs(tempDir);
     if (chartFilesWithDirs.length === 0) {
-      (0, import_core7.info)(`No charts required updating for dependency '${chartName}'. No PR will be opened.`);
+      (0, import_core7.info)(`No charts found in ${targetRepo}.`);
       return;
     }
     let updatedAny = false;
