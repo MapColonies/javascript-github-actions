@@ -45782,7 +45782,7 @@ config(en_default());
 // actions/update-chart-dependency/main.ts
 var CHART_FILE_NAME = "Chart";
 var HELMFILE_NAME = "helmfile";
-var PR_TITLE_PREFIX = "deps: update Helm dependencies: ";
+var PR_TITLE_PREFIX = "deps: update Helm dependency";
 var DEFAULT_BASE_BRANCH = "master";
 var actionInputsSchema = external_exports.object({
   chartName: external_exports.string().min(1, { message: "chart-name is required" }),
@@ -45963,19 +45963,15 @@ async function updateFilesInBranch(octokit, owner, repo, branchName, dependency,
     }
   }
 }
-async function createPullRequest(octokit, owner, repo, branchName, dependencyName, newVersion, baseBranch, fileUpdates) {
-  const chartList = fileUpdates.map(({ path: path2, oldVersion }) => {
-    const chart = path2.split("/")[0];
-    const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: ${oldVersion})` : "";
-    return `- \`${chart}\`${oldVer}`;
-  }).join("\n");
-  const body = [`Update Helm chart dependency '\`${dependencyName}\`' to version \`${newVersion}\`.`, "", "### Updated charts:", chartList].join(
-    "\n"
-  );
+async function createPullRequest(octokit, owner, repo, branchName, dependencyName, newVersion, baseBranch, fileUpdate) {
+  const oldVersion = fileUpdate.oldVersion;
+  const chart = fileUpdate.path.split("/")[0];
+  const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: ${oldVersion})` : "";
+  const body = [`Update Helm chart dependency '\`${dependencyName}\`' to version \`${newVersion}\`.`, "", "### Updated charts:", `- \`${chart}\`${oldVer}`].join("\n");
   await octokit.rest.pulls.create({
     owner,
     repo,
-    title: `${PR_TITLE_PREFIX}${dependencyName}`,
+    title: `${PR_TITLE_PREFIX} ${dependencyName} in chart ${chart}`,
     head: branchName,
     base: baseBranch,
     body
@@ -46023,9 +46019,16 @@ async function run() {
         await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version2, [
           { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
         ]);
-        await createPullRequest(octokit, owner, repo, branchName, chartName, version2, branch, [
+        await createPullRequest(
+          octokit,
+          owner,
+          repo,
+          branchName,
+          chartName,
+          version2,
+          branch,
           { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
-        ]);
+        );
         (0, import_core7.info)(`Successfully created PR to update dependency '${chartName}' to version ${version2} in chart: ${chartDir}`);
         updatedAny = true;
       } catch (chartError) {

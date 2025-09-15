@@ -449,14 +449,18 @@ describe('update-chart-dependency Action', () => {
     }));
     (github.getOctokit as unknown) = mockGetOctokit;
     await run();
-    // The PR body should include the old version for each chart
+    // The PR body should include the old version and only a single chart per PR
     expect(createPullRequest).toHaveBeenCalledTimes(2);
     for (let i = 0; i < 2; i++) {
-      const prCall = createPullRequest.mock.calls[i]?.[0] as { body: string };
-      const prBody = prCall.body;
+      const prCall = createPullRequest.mock.calls[i]?.[0] as { body: string; title: string };
       expect(prCall).toBeDefined();
-      expect(prBody).toContain('old version: 0.0.1');
-      expect(prBody).toMatch(/- `chart[AB]`/);
+      // Body should match the new format: single chart, old version in parentheses
+      const chartLetter = i === 0 ? 'A' : 'B';
+      const expectedBody =
+        `Update Helm chart dependency '\`test-service\`' to version \`1.2.3\`.\n\n### Updated charts:\n- \`chart${chartLetter}\` (old version: 0.0.1)`;
+      expect(prCall.body).toBe(expectedBody);
+      // Title should match the new format
+      expect(prCall.title).toBe(`deps: update Helm dependency test-service in chart chart${chartLetter}`);
     }
   });
 
