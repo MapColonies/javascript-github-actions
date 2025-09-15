@@ -415,7 +415,12 @@ async function createPullRequest(
   const chart = fileUpdate.path.split('/')[0];
   const oldVer = typeof oldVersion === 'string' && oldVersion.length > 0 ? ` (old version: ${oldVersion})` : '';
 
-  const body = [`Update Helm chart dependency '\`${dependencyName}\`' to version \`${newVersion}\`.`, '', '### Updated charts:', `- \`${chart}\`${oldVer}`].join('\n');
+  const body = [
+    `Update Helm chart dependency '\`${dependencyName}\`' to version \`${newVersion}\`.`,
+    '',
+    '### Updated charts:',
+    `- \`${chart}\`${oldVer}`,
+  ].join('\n');
 
   await octokit.rest.pulls.create({
     owner,
@@ -483,16 +488,19 @@ async function run(): Promise<void> {
         }
 
         // 2. Create a new branch and commit the changes
-        const branchName = `update-helm-chart-${chartName}-${version}-${chartDir}`;
+        const sanitizedFilePath = absFilePath.split('/').join('-');
+        const branchName = `update-helm-chart-${chartName}-${version}-${sanitizedFilePath}`;
         await createBranch(octokit, owner, repo, branch, branchName);
         await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, [
           { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion },
         ]);
 
         // 3. Create a PR with the new changes
-        await createPullRequest(octokit, owner, repo, branchName, chartName, version, branch,
-          { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion },
-        );
+        await createPullRequest(octokit, owner, repo, branchName, chartName, version, branch, {
+          path: relFilePath,
+          content: newContent,
+          oldVersion: updateResult.oldVersion,
+        });
         info(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart: ${chartDir}`);
         updatedAny = true;
       } catch (chartError) {

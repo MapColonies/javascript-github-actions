@@ -223,6 +223,74 @@ describe('update-chart-dependency Action', () => {
     });
   });
 
+  it('should generate the correct branch name for nested chart directories', async () => {
+    // Simulate nested directory structure: nested/dir/chart/Chart.yaml
+    const nestedDir = 'nested/dir/chart';
+    const absFilePath = `${tempDir}/${nestedDir}/Chart.yaml`;
+    // Mock directory reading to return the nested structure
+    readDirSyncSpy.mockImplementation((dirPath: string) => {
+      if (dirPath === tempDir) {
+        return [makeDirent('nested')];
+      }
+      if (dirPath === `${tempDir}/nested`) {
+        return [makeDirent('dir')];
+      }
+      if (dirPath === `${tempDir}/nested/dir`) {
+        return [makeDirent('chart')];
+      }
+      if (dirPath === `${tempDir}/nested/dir/chart`) {
+        return [];
+      }
+      return [];
+    });
+    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
+      return filePath === absFilePath;
+    });
+    readFileSyncSpy.mockImplementation((filePath: fs.PathOrFileDescriptor) => {
+      if (filePath === absFilePath) {
+        return yaml.stringify({ dependencies: [{ name: 'test-service', version: '0.0.1' }] });
+      }
+      return '';
+    });
+    const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
+    const createBranch = vi.fn().mockResolvedValue({});
+    const createPullRequest = vi.fn().mockResolvedValue({});
+    mockGetOctokit = vi.fn(() => ({
+      rest: {
+        git: {
+          getRef: vi.fn().mockResolvedValue({ data: { object: { sha: 'base-sha' } } }),
+          createRef: createBranch,
+        },
+        repos: {
+          getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }),
+          createOrUpdateFileContents,
+        },
+        pulls: {
+          create: createPullRequest,
+        },
+      },
+    }));
+    (github.getOctokit as unknown) = mockGetOctokit;
+    await run();
+    // The branch name should be sanitized: update-helm-chart-test-service-1.2.3-<sanitizedFilePath>
+    const sanitizedFilePath = absFilePath.split('/').join('-');
+    const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
+    // createBranch should be called with an object whose ref property matches the expected branch name
+    expect(createBranch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ref: `refs/heads/${expectedBranchName}`,
+      })
+    );
+    // createPullRequest should be called with an object whose head property matches the expected branch name
+    expect(createPullRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        head: expectedBranchName,
+        title: 'deps: update Helm dependency test-service in chart nested',
+        body: "Update Helm chart dependency '`test-service`' to version `1.2.3`." + '\n\n### Updated charts:\n- `nested` (old version: 0.0.1)',
+      })
+    );
+  });
+
   it('should fail if required inputs are missing', async () => {
     mockGetInput = vi.fn(createMockGetInput({ chartName: '', version: '', githubToken: '', targetRepo: '' }));
     (core.getInput as unknown) = mockGetInput;
@@ -456,8 +524,7 @@ describe('update-chart-dependency Action', () => {
       expect(prCall).toBeDefined();
       // Body should match the new format: single chart, old version in parentheses
       const chartLetter = i === 0 ? 'A' : 'B';
-      const expectedBody =
-        `Update Helm chart dependency '\`test-service\`' to version \`1.2.3\`.\n\n### Updated charts:\n- \`chart${chartLetter}\` (old version: 0.0.1)`;
+      const expectedBody = `Update Helm chart dependency '\`test-service\`' to version \`1.2.3\`.\n\n### Updated charts:\n- \`chart${chartLetter}\` (old version: 0.0.1)`;
       expect(prCall.body).toBe(expectedBody);
       // Title should match the new format
       expect(prCall.title).toBe(`deps: update Helm dependency test-service in chart chart${chartLetter}`);

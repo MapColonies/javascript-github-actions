@@ -46014,7 +46014,8 @@ async function run() {
         if (!updateResult.updated || typeof newContent !== "string" || newContent.length === 0) {
           continue;
         }
-        const branchName = `update-helm-chart-${chartName}-${version2}-${chartDir}`;
+        const sanitizedFilePath = absFilePath.split("/").join("-");
+        const branchName = `update-helm-chart-${chartName}-${version2}-${sanitizedFilePath}`;
         await createBranch(octokit, owner, repo, branch, branchName);
         await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version2, [
           { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
