@@ -45997,6 +45997,7 @@ async function run() {
     const repo = (repoParts[1] ?? "").trim();
     const tempDir = import_fs.default.mkdtempSync(import_path.default.join(import_os.default.tmpdir(), "chart-repo-"));
     await downloadRepoDir(octokit, owner, repo, branch, "", tempDir);
+    (0, import_core7.info)(`Looking for charts in '${targetRepo}' with dependency '${chartName}'.`);
     const chartFilesWithDirs = getChartFilesWithDirs(tempDir);
     if (chartFilesWithDirs.length === 0) {
       (0, import_core7.info)(`No charts found in ${targetRepo}.`);
@@ -46019,7 +46020,8 @@ async function run() {
         if (!updateResult.updated || typeof newContent !== "string" || newContent.length === 0) {
           continue;
         }
-        const sanitizedFilePath = absFilePath.split("/").join("-");
+        const dirPath = import_path.default.dirname(absFilePath).slice(tempDir.length + 1);
+        const sanitizedFilePath = dirPath.split("/").join("-");
         const branchName = `update-helm-chart-${chartName}-${version2}-${sanitizedFilePath}`;
         await createBranch(octokit, owner, repo, branch, branchName);
         await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version2, [
@@ -46030,7 +46032,7 @@ async function run() {
           content: newContent,
           oldVersion: updateResult.oldVersion
         });
-        (0, import_core7.info)(`Successfully created PR to update dependency '${chartName}' to version ${version2} in chart: ${chartDir}`);
+        (0, import_core7.info)(`Successfully created PR to update dependency '${chartName}' to version ${version2} in chart '${chartDir}'`);
         updatedAny = true;
       } catch (chartError) {
         (0, import_core7.warning)(`Failed to process chart '${chartDir}': ${chartError instanceof Error ? chartError.message : ""}`);

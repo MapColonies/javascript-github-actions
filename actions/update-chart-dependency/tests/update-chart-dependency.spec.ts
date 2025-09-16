@@ -273,7 +273,7 @@ describe('update-chart-dependency Action', () => {
     (github.getOctokit as unknown) = mockGetOctokit;
     await run();
     // The branch name should be sanitized: update-helm-chart-test-service-1.2.3-<sanitizedFilePath>
-    const sanitizedFilePath = absFilePath.split('/').join('-');
+    const sanitizedFilePath = nestedDir.split('/').join('-');
     const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
     // createBranch should be called with an object whose ref property matches the expected branch name
     expect(createBranch).toHaveBeenCalledWith(
@@ -386,7 +386,9 @@ describe('update-chart-dependency Action', () => {
     expect(mockGetOctokit).toHaveBeenCalledWith('ghp_testtoken');
     // Should create PR for each chart directory
     expect(createPullRequest).toHaveBeenCalledTimes(2);
-    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('Successfully created PR to update dependency'));
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.stringContaining("Successfully created PR to update dependency 'test-service' to version 1.2.3 in chart 'chartA'")
+    );
   });
 
   it('should warn if chart processing fails', async () => {
@@ -482,12 +484,6 @@ describe('update-chart-dependency Action', () => {
     (github.getOctokit as unknown) = mockGetOctokit;
     await run();
     // Should include old and new version in commit message for each chart
-    expect(createOrUpdateFileContents).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining('from version 0.0.1 to 1.2.3') as unknown as string,
-      })
-    );
-    // Should include backticks around dependency and file path
     expect(createOrUpdateFileContents).toHaveBeenCalledWith(
       expect.objectContaining({
         message: expect.stringContaining('deps: update `test-service` from version 0.0.1 to 1.2.3 in `chartA/Chart.yaml`') as unknown as string,

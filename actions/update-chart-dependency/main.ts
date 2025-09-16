@@ -457,6 +457,7 @@ async function run(): Promise<void> {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chart-repo-'));
     await downloadRepoDir(octokit, owner, repo, branch, '', tempDir);
 
+    info(`Looking for charts in '${targetRepo}' with dependency '${chartName}'.`);
     // Collect all chart / helmfile files to process
     const chartFilesWithDirs = getChartFilesWithDirs(tempDir);
 
@@ -488,7 +489,10 @@ async function run(): Promise<void> {
         }
 
         // 2. Create a new branch and commit the changes
-        const sanitizedFilePath = absFilePath.split('/').join('-');
+        // Remove base path to our temporary cloned directory.
+        const dirPath = path.dirname(absFilePath).slice(tempDir.length + 1);
+        // Sanitize file path for branch name (replace slashes with dashes, remove leading slash).
+        const sanitizedFilePath = dirPath.split('/').join('-');
         const branchName = `update-helm-chart-${chartName}-${version}-${sanitizedFilePath}`;
         await createBranch(octokit, owner, repo, branch, branchName);
         await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, [
@@ -501,7 +505,7 @@ async function run(): Promise<void> {
           content: newContent,
           oldVersion: updateResult.oldVersion,
         });
-        info(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart: ${chartDir}`);
+        info(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart '${chartDir}'`);
         updatedAny = true;
       } catch (chartError) {
         warning(`Failed to process chart '${chartDir}': ${chartError instanceof Error ? chartError.message : ''}`);
