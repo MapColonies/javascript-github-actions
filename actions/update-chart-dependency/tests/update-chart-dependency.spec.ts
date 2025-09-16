@@ -274,7 +274,7 @@ describe('update-chart-dependency Action', () => {
     await run();
     // The branch name should be sanitized: update-helm-chart-test-service-1.2.3-<sanitizedFilePath>
     const sanitizedFilePath = nestedDir.split('/').join('-');
-    const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
+    const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}-Chart`;
     // createBranch should be called with an object whose ref property matches the expected branch name
     expect(createBranch).toHaveBeenCalledWith(
       expect.objectContaining({

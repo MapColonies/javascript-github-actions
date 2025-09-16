@@ -489,8 +489,9 @@ async function run(): Promise<void> {
         }
 
         // 2. Create a new branch and commit the changes
+        const lastDotIndex = absFilePath.lastIndexOf('.');
         // Remove base path to our temporary cloned directory.
-        const dirPath = path.dirname(absFilePath).slice(tempDir.length + 1);
+        const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
         // Sanitize file path for branch name (replace slashes with dashes, remove leading slash).
         const sanitizedFilePath = dirPath.split('/').join('-');
         const branchName = `update-helm-chart-${chartName}-${version}-${sanitizedFilePath}`;

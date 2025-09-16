@@ -46020,7 +46020,8 @@ async function run() {
         if (!updateResult.updated || typeof newContent !== "string" || newContent.length === 0) {
           continue;
         }
-        const dirPath = import_path.default.dirname(absFilePath).slice(tempDir.length + 1);
+        const lastDotIndex = absFilePath.lastIndexOf(".");
+        const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
         const sanitizedFilePath = dirPath.split("/").join("-");
         const branchName = `update-helm-chart-${chartName}-${version2}-${sanitizedFilePath}`;
         await createBranch(octokit, owner, repo, branch, branchName);
