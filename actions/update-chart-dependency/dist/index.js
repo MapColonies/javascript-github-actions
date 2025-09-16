@@ -46029,7 +46029,7 @@ async function run() {
           { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
         ]);
         await createPullRequest(octokit, owner, repo, branchName, chartName, version2, branch, {
-          path: sanitizedFilePath,
+          path: dirPath,
           content: newContent,
           oldVersion: updateResult.oldVersion
         });

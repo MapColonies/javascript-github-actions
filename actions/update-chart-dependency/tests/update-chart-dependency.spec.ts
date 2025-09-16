@@ -273,6 +273,7 @@ describe('update-chart-dependency Action', () => {
     (github.getOctokit as unknown) = mockGetOctokit;
     await run();
     // The branch name should be sanitized: update-helm-chart-test-service-1.2.3-<sanitizedFilePath>
+    const unsanitizedFilePath = `${nestedDir}/Chart`;
     const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
     const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
     expect(createBranch).toHaveBeenCalledWith(
@@ -283,8 +284,8 @@ describe('update-chart-dependency Action', () => {
     expect(createPullRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         head: expectedBranchName,
-        title: `deps: update Helm dependency test-service in chart ${sanitizedFilePath}`,
-        body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${sanitizedFilePath}\` (old version: \`0.0.1\`)`,
+        title: `deps: update Helm dependency test-service in chart ${unsanitizedFilePath}`,
+        body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${unsanitizedFilePath}\` (old version: \`0.0.1\`)`,
       })
     );
   });
@@ -522,12 +523,11 @@ describe('update-chart-dependency Action', () => {
     for (let i = 0; i < 2; i++) {
       const prCall = createPullRequest.mock.calls[i]?.[0] as { body: string; title: string };
       expect(prCall).toBeDefined();
-      // Use sanitized file path for chart name
       const chartLetter = i === 0 ? 'A' : 'B';
-      const sanitizedFilePath = `chart${chartLetter}-Chart`;
-      const expectedBody = `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${sanitizedFilePath}\` (old version: \`0.0.1\`)`;
+      const filePath = `chart${chartLetter}/Chart`;
+      const expectedBody = `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${filePath}\` (old version: \`0.0.1\`)`;
       expect(prCall.body).toBe(expectedBody);
-      expect(prCall.title).toBe(`deps: update Helm dependency test-service in chart ${sanitizedFilePath}`);
+      expect(prCall.title).toBe(`deps: update Helm dependency test-service in chart ${filePath}`);
     }
   });
 
