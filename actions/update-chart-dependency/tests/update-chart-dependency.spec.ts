@@ -286,7 +286,7 @@ describe('update-chart-dependency Action', () => {
       expect.objectContaining({
         head: expectedBranchName,
         title: 'deps: update Helm dependency test-service in chart nested',
-        body: "Update Helm chart dependency '`test-service`' to version `1.2.3`." + '\n\n### Updated charts:\n- `nested` (old version: 0.0.1)',
+        body: "Update Helm chart dependency '`test-service`' to version `1.2.3`." + '\n\n### Updated charts:\n- `nested` (old version: `0.0.1`)',
       })
     );
   });
@@ -487,6 +487,12 @@ describe('update-chart-dependency Action', () => {
         message: expect.stringContaining('from version 0.0.1 to 1.2.3') as unknown as string,
       })
     );
+    // Should include backticks around dependency and file path
+    expect(createOrUpdateFileContents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('deps: update `test-service` from version 0.0.1 to 1.2.3 in `chartA/Chart.yaml`') as unknown as string,
+      })
+    );
   });
 
   it('should include old version in PR body for each updated chart', async () => {
@@ -524,7 +530,7 @@ describe('update-chart-dependency Action', () => {
       expect(prCall).toBeDefined();
       // Body should match the new format: single chart, old version in parentheses
       const chartLetter = i === 0 ? 'A' : 'B';
-      const expectedBody = `Update Helm chart dependency '\`test-service\`' to version \`1.2.3\`.\n\n### Updated charts:\n- \`chart${chartLetter}\` (old version: 0.0.1)`;
+      const expectedBody = `Update Helm chart dependency '\`test-service\`' to version \`1.2.3\`.\n\n### Updated charts:\n- \`chart${chartLetter}\` (old version: \`0.0.1\`)`;
       expect(prCall.body).toBe(expectedBody);
       // Title should match the new format
       expect(prCall.title).toBe(`deps: update Helm dependency test-service in chart chart${chartLetter}`);

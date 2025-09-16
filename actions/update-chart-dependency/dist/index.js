@@ -45945,7 +45945,7 @@ async function updateFilesInBranch(octokit, owner, repo, branchName, dependency,
         owner,
         repo,
         path: filePath,
-        message: `deps: update '${dependency}' ${versionMsg} in ${filePath}`,
+        message: `deps: update \`${dependency}\` ${versionMsg} in \`${filePath}\``,
         content: Buffer.from(content).toString("base64"),
         branch: branchName,
         sha: fileSha,
@@ -45959,14 +45959,14 @@ async function updateFilesInBranch(octokit, owner, repo, branchName, dependency,
         }
       });
     } catch (err) {
-      (0, import_core7.warning)(`Failed to update file '${filePath}': ${err instanceof Error ? err.message : String(err)}`);
+      (0, import_core7.warning)(`Failed to update file \`${filePath}\`: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }
 async function createPullRequest(octokit, owner, repo, branchName, dependencyName, newVersion, baseBranch, fileUpdate) {
   const oldVersion = fileUpdate.oldVersion;
   const chart = fileUpdate.path.split("/")[0];
-  const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: ${oldVersion})` : "";
+  const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: \`${oldVersion}\`)` : "";
   const body = [
     `Update Helm chart dependency '\`${dependencyName}\`' to version \`${newVersion}\`.`,
     "",
