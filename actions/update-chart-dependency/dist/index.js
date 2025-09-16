@@ -45965,10 +45965,10 @@ async function updateFilesInBranch(octokit, owner, repo, branchName, dependency,
 }
 async function createPullRequest(octokit, owner, repo, branchName, dependencyName, newVersion, baseBranch, fileUpdate) {
   const oldVersion = fileUpdate.oldVersion;
-  const chart = fileUpdate.path.split("/")[0];
+  const chart = fileUpdate.path;
   const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: \`${oldVersion}\`)` : "";
   const body = [
-    `Update Helm chart dependency '\`${dependencyName}\`' to version \`${newVersion}\`.`,
+    `Update Helm chart dependency \`${dependencyName}\` to version \`${newVersion}\`.`,
     "",
     "### Updated charts:",
     `- \`${chart}\`${oldVer}`
@@ -46029,7 +46029,7 @@ async function run() {
           { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
         ]);
         await createPullRequest(octokit, owner, repo, branchName, chartName, version2, branch, {
-          path: relFilePath,
+          path: sanitizedFilePath,
           content: newContent,
           oldVersion: updateResult.oldVersion
         });

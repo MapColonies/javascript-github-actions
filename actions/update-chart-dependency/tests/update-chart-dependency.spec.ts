@@ -273,20 +273,18 @@ describe('update-chart-dependency Action', () => {
     (github.getOctokit as unknown) = mockGetOctokit;
     await run();
     // The branch name should be sanitized: update-helm-chart-test-service-1.2.3-<sanitizedFilePath>
-    const sanitizedFilePath = nestedDir.split('/').join('-');
-    const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}-Chart`;
-    // createBranch should be called with an object whose ref property matches the expected branch name
+    const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
+    const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
     expect(createBranch).toHaveBeenCalledWith(
       expect.objectContaining({
         ref: `refs/heads/${expectedBranchName}`,
       })
     );
-    // createPullRequest should be called with an object whose head property matches the expected branch name
     expect(createPullRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         head: expectedBranchName,
-        title: 'deps: update Helm dependency test-service in chart nested',
-        body: "Update Helm chart dependency '`test-service`' to version `1.2.3`." + '\n\n### Updated charts:\n- `nested` (old version: `0.0.1`)',
+        title: `deps: update Helm dependency test-service in chart ${sanitizedFilePath}`,
+        body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${sanitizedFilePath}\` (old version: \`0.0.1\`)`,
       })
     );
   });
@@ -524,12 +522,12 @@ describe('update-chart-dependency Action', () => {
     for (let i = 0; i < 2; i++) {
       const prCall = createPullRequest.mock.calls[i]?.[0] as { body: string; title: string };
       expect(prCall).toBeDefined();
-      // Body should match the new format: single chart, old version in parentheses
+      // Use sanitized file path for chart name
       const chartLetter = i === 0 ? 'A' : 'B';
-      const expectedBody = `Update Helm chart dependency '\`test-service\`' to version \`1.2.3\`.\n\n### Updated charts:\n- \`chart${chartLetter}\` (old version: \`0.0.1\`)`;
+      const sanitizedFilePath = `chart${chartLetter}-Chart`;
+      const expectedBody = `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${sanitizedFilePath}\` (old version: \`0.0.1\`)`;
       expect(prCall.body).toBe(expectedBody);
-      // Title should match the new format
-      expect(prCall.title).toBe(`deps: update Helm dependency test-service in chart chart${chartLetter}`);
+      expect(prCall.title).toBe(`deps: update Helm dependency test-service in chart ${sanitizedFilePath}`);
     }
   });
 
