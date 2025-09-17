@@ -251,7 +251,7 @@ describe('update-chart-dependency Action', () => {
     const nestedDir = 'nested/dir/chart';
     const absFilePath = `${tempDir}/${nestedDir}/Chart.yaml`;
     const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
-    const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
+    const expectedBranchName = `update-helm-chart-test-service-${sanitizedFilePath}`;
     // Mock directory reading to return the nested structure
     vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
       const dirStr = Buffer.isBuffer(dirPath) ? dirPath.toString() : dirPath;

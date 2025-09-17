@@ -620,7 +620,7 @@ async function run(): Promise<void> {
         const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
         // Sanitize file path for branch name (replace slashes with dashes, remove leading slash).
         const sanitizedFilePath = dirPath.split('/').join('-');
-        const branchName = `update-helm-chart-${chartName}-${version}-${sanitizedFilePath}`;
+        const branchName = `update-helm-chart-${chartName}-${sanitizedFilePath}`;
 
         // 2. Check if branch exists and get existing version if it does, otherwise create it
         const branchExists = await branchExistsRemote(octokit, owner, repo, branchName);

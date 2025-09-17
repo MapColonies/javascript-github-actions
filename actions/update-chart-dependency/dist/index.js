@@ -47995,7 +47995,7 @@ async function run() {
         const lastDotIndex = absFilePath.lastIndexOf(".");
         const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
         const sanitizedFilePath = dirPath.split("/").join("-");
-        const branchName = `update-helm-chart-${chartName}-${version2}-${sanitizedFilePath}`;
+        const branchName = `update-helm-chart-${chartName}-${sanitizedFilePath}`;
         const branchExists = await branchExistsRemote(octokit, owner, repo, branchName);
         const existingVersion = branchExists ? await getExistingVersionInBranch(octokit, owner, repo, relFilePath, branchName, fileName, chartName) : void 0;
         const shouldUpdate = !branchExists || shouldUpdateBranch(version2, existingVersion);
