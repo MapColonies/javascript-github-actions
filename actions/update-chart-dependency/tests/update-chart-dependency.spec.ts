@@ -12,8 +12,17 @@ import {
   getChartFilesWithDirs,
   getVersionFromChartYaml,
   getVersionFromHelmfileYaml,
+  shouldUpdateBranch,
+  getExistingVersionInBranch,
+  downloadRepoDir,
+  createBranch,
+  createPullRequest,
 } from '../main.js';
 import type { ActionInputs } from '../main.js';
+// Helper type for octokit mock
+interface MockOctokit {
+  rest: Record<string, Record<string, unknown>>;
+}
 
 vi.mock('@actions/core');
 vi.mock('@actions/github');
@@ -672,6 +681,134 @@ describe('update-chart-dependency Action', () => {
 
     it('should return undefined for invalid YAML', () => {
       expect(getVersionFromHelmfileYaml('bad: : yaml', 'test-service')).toBeUndefined();
+    });
+  });
+
+  describe('Direct unit tests for helpers and error handling', () => {
+    it('shouldUpdateBranch: returns true if existingVersion is undefined', () => {
+      expect(shouldUpdateBranch('1.2.3')).toBe(true);
+    });
+    it('shouldUpdateBranch: returns true if newVersion > existingVersion', () => {
+      expect(shouldUpdateBranch('2.0.0', '1.2.3')).toBe(true);
+    });
+    it('shouldUpdateBranch: returns false if newVersion <= existingVersion', () => {
+      expect(shouldUpdateBranch('1.2.3', '1.2.3')).toBe(false);
+      expect(shouldUpdateBranch('1.2.2', '1.2.3')).toBe(false);
+    });
+
+    it('getExistingVersionInBranch: extracts version from Chart.yaml in branch', async () => {
+      const octokit: MockOctokit = {
+        rest: {
+          repos: {
+            getContent: vi.fn().mockResolvedValue({
+              data: {
+                content: Buffer.from(yaml.stringify({ dependencies: [{ name: 'test-service', version: '1.2.3' }] })).toString('base64'),
+              },
+            }),
+          },
+        },
+      };
+      const version = await getExistingVersionInBranch(
+        octokit as unknown as ReturnType<typeof github.getOctokit>,
+        'owner',
+        'repo',
+        'chart/Chart.yaml',
+        'branch',
+        'Chart.yaml',
+        'test-service'
+      );
+      expect(version).toBe('1.2.3');
+    });
+    it('getExistingVersionInBranch: returns undefined if file not found', async () => {
+      const octokit: MockOctokit = {
+        rest: {
+          repos: {
+            getContent: vi.fn().mockRejectedValue(new Error('not found')),
+          },
+        },
+      };
+      const version = await getExistingVersionInBranch(
+        octokit as unknown as ReturnType<typeof github.getOctokit>,
+        'owner',
+        'repo',
+        'chart/Chart.yaml',
+        'branch',
+        'Chart.yaml',
+        'test-service'
+      );
+      expect(version).toBeUndefined();
+    });
+
+    it('downloadRepoDir: handles non-array data from getContent', async () => {
+      const octokit: MockOctokit = {
+        rest: {
+          repos: {
+            getContent: vi.fn().mockResolvedValue({ data: {} }),
+          },
+        },
+      };
+      await expect(
+        downloadRepoDir(octokit as unknown as ReturnType<typeof github.getOctokit>, 'owner', 'repo', 'branch', '', '/tmp')
+      ).resolves.toBeUndefined();
+    });
+
+    it('createBranch: throws if getRef fails', async () => {
+      const octokit: MockOctokit = {
+        rest: {
+          git: {
+            getRef: vi.fn().mockRejectedValue(new Error('fail')), // Simulate error
+            createRef: vi.fn(),
+          },
+        },
+      };
+      await expect(createBranch(octokit as unknown as ReturnType<typeof github.getOctokit>, 'owner', 'repo', 'base', 'new')).rejects.toThrow('fail');
+    });
+    it('createBranch: throws if createRef fails', async () => {
+      const octokit: MockOctokit = {
+        rest: {
+          git: {
+            getRef: vi.fn().mockResolvedValue({ data: { object: { sha: 'sha' } } }),
+            createRef: vi.fn().mockRejectedValue(new Error('fail-create')),
+          },
+        },
+      };
+      await expect(createBranch(octokit as unknown as ReturnType<typeof github.getOctokit>, 'owner', 'repo', 'base', 'new')).rejects.toThrow(
+        'fail-create'
+      );
+    });
+
+    it('updateFilesInBranch: warns if createOrUpdateFileContents fails', async () => {
+      const octokit: MockOctokit = {
+        rest: {
+          repos: {
+            createOrUpdateFileContents: vi.fn().mockRejectedValue(new Error('fail-update')),
+            getContent: vi.fn().mockResolvedValue({ data: { sha: 'sha' } }),
+          },
+        },
+      };
+      const warnSpy = vi.spyOn(core, 'warning');
+      await updateFilesInBranch(octokit as unknown as ReturnType<typeof github.getOctokit>, 'owner', 'repo', 'branch', 'dep', '1.2.3', [
+        { path: 'chart/Chart.yaml', content: 'content', oldVersion: '1.0.0' },
+      ]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to update file'));
+      warnSpy.mockRestore();
+    });
+
+    it('createPullRequest: throws if PR creation fails', async () => {
+      const octokit: MockOctokit = {
+        rest: {
+          pulls: {
+            create: vi.fn().mockRejectedValue(new Error('fail-pr')),
+          },
+        },
+      };
+      await expect(
+        createPullRequest(octokit as unknown as ReturnType<typeof github.getOctokit>, 'owner', 'repo', 'branch', 'dep', '1.2.3', 'base', {
+          path: 'chart/Chart.yaml',
+          content: 'content',
+          oldVersion: '1.0.0',
+        })
+      ).rejects.toThrow('fail-pr');
     });
   });
 });

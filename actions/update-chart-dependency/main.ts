@@ -676,6 +676,9 @@ export {
   getVersionFromChartYaml,
   getVersionFromHelmfileYaml,
   branchExistsRemote,
+  shouldUpdateBranch,
+  getExistingVersionInBranch,
+  downloadRepoDir,
 };
 
 export type { ActionInputs };
