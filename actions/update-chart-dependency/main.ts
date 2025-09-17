@@ -5,6 +5,7 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
+import { compare as semverCompare } from 'semver';
 import fetch from 'node-fetch';
 import yaml from 'yaml';
 import { getInput, setFailed, info, warning } from '@actions/core';
@@ -433,6 +434,127 @@ async function createPullRequest(
 }
 
 /**
+ * Checks if a branch exists in the remote repository.
+ * @param octokit - GitHub client
+ * @param owner - Repository owner
+ * @param repo - Repository name
+ * @param branchName - Branch name
+ * @returns {Promise<boolean>} True if branch exists, false otherwise
+ */
+async function branchExistsRemote(octokit: ReturnType<typeof getOctokit>, owner: string, repo: string, branchName: string): Promise<boolean> {
+  try {
+    await octokit.rest.git.getRef({ owner, repo, ref: `heads/${branchName}` });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Extracts the existing dependency version from a file in a branch.
+ * @param octokit - GitHub client
+ * @param owner - Repository owner
+ * @param repo - Repository name
+ * @param filePath - File path
+ * @param branchName - Branch name
+ * @param fileName - File name
+ * @param chartName - Dependency name
+ * @returns {Promise<string|undefined>} Existing version or undefined
+ */
+async function getExistingVersionInBranch(
+  octokit: ReturnType<typeof getOctokit>,
+  owner: string,
+  repo: string,
+  filePath: string,
+  branchName: string,
+  fileName: string,
+  chartName: string
+): Promise<string | undefined> {
+  try {
+    const { data } = await octokit.rest.repos.getContent({ owner, repo, path: filePath, ref: branchName });
+    if (typeof data === 'object' && 'content' in data && typeof data.content === 'string') {
+      const fileContent = Buffer.from(data.content, 'base64').toString('utf8');
+      if (fileName.includes(CHART_FILE_NAME)) {
+        return getVersionFromChartYaml(fileContent, chartName);
+      } else if (fileName.includes(HELMFILE_NAME)) {
+        return getVersionFromHelmfileYaml(fileContent, chartName);
+      }
+    }
+  } catch {
+    // If file not found or parse error, return undefined
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Extracts dependency version from Chart.yaml content
+ * @param {string} fileContent - YAML file content
+ * @param {string} chartName - Dependency name
+ * @returns {string|undefined} Version string or undefined
+ * @internal
+ */
+function getVersionFromChartYaml(fileContent: string, chartName: string): string | undefined {
+  try {
+    const chart = yaml.parse(fileContent) as ChartYaml;
+    if (Array.isArray(chart.dependencies)) {
+      for (const dep of chart.dependencies) {
+        if (dep.name === chartName && typeof dep.version === 'string') {
+          return dep.version;
+        }
+      }
+    }
+  } catch {
+    // If file not found or parse error, return undefined
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Extracts dependency version from helmfile.yaml content
+ * @param {string} fileContent - YAML file content
+ * @param {string} chartName - Dependency name
+ * @returns {string|undefined} Version string or undefined
+ * @internal
+ */
+function getVersionFromHelmfileYaml(fileContent: string, chartName: string): string | undefined {
+  try {
+    const helmfile: unknown = yaml.parse(fileContent);
+    if (typeof helmfile === 'object' && helmfile !== null && 'releases' in helmfile && Array.isArray((helmfile as { releases?: unknown }).releases)) {
+      for (const rel of (helmfile as { releases: { name?: unknown; version?: unknown }[] }).releases) {
+        if (
+          typeof rel === 'object' &&
+          'name' in rel &&
+          (rel as { name?: unknown }).name === chartName &&
+          'version' in rel &&
+          typeof (rel as { version?: unknown }).version === 'string'
+        ) {
+          return (rel as { version: string }).version;
+        }
+      }
+    }
+  } catch {
+    // If file not found or parse error, return undefined
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Determines if the branch should be updated based on version comparison.
+ * @param newVersion - New version to set
+ * @param existingVersion - Existing version in branch
+ * @returns {boolean} True if update should occur
+ */
+function shouldUpdateBranch(newVersion: string, existingVersion?: string): boolean {
+  if (typeof existingVersion !== 'string' || existingVersion.length === 0) {
+    return true;
+  }
+  return semverCompare(newVersion, existingVersion) > 0;
+}
+
+/**
  * Main action runner for the update-chart-dependency GitHub Action.
  * @returns {Promise<void>} Promise that resolves when action completes
  */
@@ -474,6 +596,8 @@ async function run(): Promise<void> {
         const relFilePath = `${chartDir}/${fileName}`;
         let updateResult: UpdateResult;
 
+        info(`Looking for needed updates in ${absFilePath}...`);
+
         // 1. Update the file content if needed
         if (fileName.includes(CHART_FILE_NAME)) {
           updateResult = updateChartYamlDependency(absFilePath, chartName, version);
@@ -485,29 +609,46 @@ async function run(): Promise<void> {
 
         const newContent = updateResult.newContent;
         if (!updateResult.updated || typeof newContent !== 'string' || newContent.length === 0) {
+          info(`No updates needed in ${absFilePath}.`);
           continue;
         }
 
-        // 2. Create a new branch and commit the changes
+        info(`Updating dependency ${chartName} in ${absFilePath}.`);
+
         const lastDotIndex = absFilePath.lastIndexOf('.');
         // Remove base path to our temporary cloned directory.
         const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
         // Sanitize file path for branch name (replace slashes with dashes, remove leading slash).
         const sanitizedFilePath = dirPath.split('/').join('-');
         const branchName = `update-helm-chart-${chartName}-${version}-${sanitizedFilePath}`;
-        await createBranch(octokit, owner, repo, branch, branchName);
-        await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, [
-          { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion },
-        ]);
 
-        // 3. Create a PR with the new changes
-        await createPullRequest(octokit, owner, repo, branchName, chartName, version, branch, {
-          path: dirPath,
-          content: newContent,
-          oldVersion: updateResult.oldVersion,
-        });
-        info(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart '${chartDir}'`);
-        updatedAny = true;
+        // 2. Check if branch exists and get existing version if it does, otherwise create it
+        const branchExists = await branchExistsRemote(octokit, owner, repo, branchName);
+        const existingVersion = branchExists
+          ? await getExistingVersionInBranch(octokit, owner, repo, relFilePath, branchName, fileName, chartName)
+          : undefined;
+        const shouldUpdate = !branchExists || shouldUpdateBranch(version, existingVersion);
+
+        if (!branchExists) {
+          info(`Branch '${branchName}' does not exist, creating it from '${branch}'.`);
+          await createBranch(octokit, owner, repo, branch, branchName);
+        } else {
+          info(`Branch '${branchName}' exists, updating with changes.`);
+        }
+
+        // 3. Update files in branch and create PR if needed
+        if (shouldUpdate) {
+          await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, [
+            { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion },
+          ]);
+          await createPullRequest(octokit, owner, repo, branchName, chartName, version, branch, {
+            path: dirPath,
+            content: newContent,
+            oldVersion: updateResult.oldVersion,
+          });
+          info(`Successfully created PR to update dependency '${chartName}' to version ${version} in chart '${chartDir}'`);
+          updatedAny = true;
+        }
       } catch (chartError) {
         warning(`Failed to process chart '${chartDir}': ${chartError instanceof Error ? chartError.message : ''}`);
       }
@@ -532,6 +673,9 @@ export {
   createBranch,
   updateFilesInBranch,
   createPullRequest,
+  getVersionFromChartYaml,
+  getVersionFromHelmfileYaml,
+  branchExistsRemote,
 };
 
 export type { ActionInputs };

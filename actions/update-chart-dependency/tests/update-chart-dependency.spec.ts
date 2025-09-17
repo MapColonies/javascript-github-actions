@@ -3,7 +3,16 @@ import yaml from 'yaml';
 import { describe, it, expect, vi, beforeEach, MockInstance } from 'vitest';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { run, getFileSha, updateFilesInBranch, updateChartYamlDependency, updateHelmfileReleaseVersion, getChartFilesWithDirs } from '../main.js';
+import {
+  run,
+  getFileSha,
+  updateFilesInBranch,
+  updateChartYamlDependency,
+  updateHelmfileReleaseVersion,
+  getChartFilesWithDirs,
+  getVersionFromChartYaml,
+  getVersionFromHelmfileYaml,
+} from '../main.js';
 import type { ActionInputs } from '../main.js';
 
 vi.mock('@actions/core');
@@ -153,6 +162,11 @@ describe('update-chart-dependency Action', () => {
 
   describe('updateChartYamlDependency', () => {
     it('should update dependency version in Chart.yaml', () => {
+      // Valid Chart.yaml with test-service at version 0.0.1
+      const chartObj = {
+        dependencies: [{ name: 'test-service', version: '0.0.1' }],
+      };
+      const yamlContent = yaml.stringify(chartObj);
       readFileSyncSpy.mockReturnValue(yamlContent);
       const result = updateChartYamlDependency('/fake/path/Chart.yaml', 'test-service', '1.2.3');
       expect(result.updated).toBe(true);
@@ -223,30 +237,24 @@ describe('update-chart-dependency Action', () => {
     });
   });
 
-  it('should generate the correct branch name for nested chart directories', async () => {
-    // Simulate nested directory structure: nested/dir/chart/Chart.yaml
+  it('should create branch and PR for nested chart directories when branch does not exist', async () => {
+    const tempDir = '/tmp';
     const nestedDir = 'nested/dir/chart';
     const absFilePath = `${tempDir}/${nestedDir}/Chart.yaml`;
+    const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
+    const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
     // Mock directory reading to return the nested structure
-    readDirSyncSpy.mockImplementation((dirPath: string) => {
-      if (dirPath === tempDir) {
-        return [makeDirent('nested')];
-      }
-      if (dirPath === `${tempDir}/nested`) {
-        return [makeDirent('dir')];
-      }
-      if (dirPath === `${tempDir}/nested/dir`) {
-        return [makeDirent('chart')];
-      }
-      if (dirPath === `${tempDir}/nested/dir/chart`) {
-        return [];
-      }
+    vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
+      const dirStr = Buffer.isBuffer(dirPath) ? dirPath.toString() : dirPath;
+      if (dirStr === tempDir) return [makeDirent('nested')];
+      if (dirStr === `${tempDir}/nested`) return [makeDirent('dir')];
+      if (dirStr === `${tempDir}/nested/dir`) return [makeDirent('chart')];
+      if (dirStr === `${tempDir}/nested/dir/chart`) return [];
       return [];
     });
-    existsSyncSpy.mockImplementation((filePath: fs.PathLike) => {
-      return filePath === absFilePath;
-    });
-    readFileSyncSpy.mockImplementation((filePath: fs.PathOrFileDescriptor) => {
+    vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => filePath === absFilePath);
+    vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
+      // Chart.yaml has old version, so update/PR should be triggered
       if (filePath === absFilePath) {
         return yaml.stringify({ dependencies: [{ name: 'test-service', version: '0.0.1' }] });
       }
@@ -255,32 +263,26 @@ describe('update-chart-dependency Action', () => {
     const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
     const createBranch = vi.fn().mockResolvedValue({});
     const createPullRequest = vi.fn().mockResolvedValue({});
+    // getRef throws for the expected branch name (branch does not exist)
+    const getRefMock = vi.fn(({ ref }: { ref: string }) => {
+      // throw new Error('Branch not found');
+      if (ref === `heads/${expectedBranchName}`) throw new Error('Branch not found');
+      return { data: { object: { sha: 'base-sha' } } };
+    });
     mockGetOctokit = vi.fn(() => ({
       rest: {
-        git: {
-          getRef: vi.fn().mockResolvedValue({ data: { object: { sha: 'base-sha' } } }),
-          createRef: createBranch,
-        },
-        repos: {
-          getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }),
-          createOrUpdateFileContents,
-        },
-        pulls: {
-          create: createPullRequest,
-        },
+        git: { getRef: getRefMock, createRef: createBranch },
+        repos: { getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }), createOrUpdateFileContents },
+        pulls: { create: createPullRequest },
       },
     }));
     (github.getOctokit as unknown) = mockGetOctokit;
+    vi.spyOn(fs, 'mkdtempSync').mockReturnValue(tempDir);
     await run();
-    // The branch name should be sanitized: update-helm-chart-test-service-1.2.3-<sanitizedFilePath>
+
+    // Assert: Branch and PR should be created for nested chart
     const unsanitizedFilePath = `${nestedDir}/Chart`;
-    const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
-    const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
-    expect(createBranch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ref: `refs/heads/${expectedBranchName}`,
-      })
-    );
+    expect(createBranch).toHaveBeenCalledWith(expect.objectContaining({ ref: `refs/heads/${expectedBranchName}` }));
     expect(createPullRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         head: expectedBranchName,
@@ -288,6 +290,54 @@ describe('update-chart-dependency Action', () => {
         body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${unsanitizedFilePath}\` (old version: \`0.0.1\`)`,
       })
     );
+  });
+
+  it('should not create branch or PR for nested chart directories when branch already exists', async () => {
+    const tempDir = '/tmp';
+    const nestedDir = 'nested/dir/chart';
+    const absFilePath = `${tempDir}/${nestedDir}/Chart.yaml`;
+    // const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
+    // const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
+
+    vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
+      const dirStr = Buffer.isBuffer(dirPath) ? dirPath.toString() : dirPath;
+      if (dirStr === tempDir) return [makeDirent('nested')];
+      if (dirStr === `${tempDir}/nested`) return [makeDirent('dir')];
+      if (dirStr === `${tempDir}/nested/dir`) return [makeDirent('chart')];
+      if (dirStr === `${tempDir}/nested/dir/chart`) return [];
+      return [];
+    });
+    vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => filePath === absFilePath);
+    vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
+      // Chart.yaml already has the requested version, so no update/PR should be created
+      if (filePath === absFilePath) {
+        return yaml.stringify({ dependencies: [{ name: 'test-service', version: '1.2.3' }] });
+      }
+      return '';
+    });
+
+    const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
+    const createBranch = vi.fn().mockResolvedValue({});
+    const createPullRequest = vi.fn().mockResolvedValue({});
+    // getRef resolves for the expected branch name
+    const getRefMock = vi.fn(() => {
+      return { data: { object: { sha: 'base-sha' } } };
+    });
+    mockGetOctokit = vi.fn(() => ({
+      rest: {
+        git: { getRef: getRefMock, createRef: createBranch },
+        repos: { getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }), createOrUpdateFileContents },
+        pulls: { create: createPullRequest },
+      },
+    }));
+    (github.getOctokit as unknown) = mockGetOctokit;
+    vi.spyOn(fs, 'mkdtempSync').mockReturnValue(tempDir);
+
+    await run();
+
+    // Assert: Branch and PR should NOT be created for nested chart
+    expect(createBranch).not.toHaveBeenCalled();
+    expect(createPullRequest).not.toHaveBeenCalled();
   });
 
   it('should fail if required inputs are missing', async () => {
@@ -571,5 +621,57 @@ describe('update-chart-dependency Action', () => {
       { chartDir: 'nested/subchart', absFilePath: `${tempDir}/nested/subchart/Chart.yaml` },
       { chartDir: 'nested/subchart', absFilePath: `${tempDir}/nested/subchart/helmfile.yaml` },
     ]);
+  });
+
+  describe('getVersionFromChartYaml', () => {
+    it('should extract the correct version for a matching dependency', () => {
+      const chartObj = {
+        dependencies: [
+          { name: 'test-service', version: '1.2.3' },
+          { name: 'other', version: '0.0.1' },
+        ],
+      };
+      const yamlContent = yaml.stringify(chartObj);
+      expect(getVersionFromChartYaml(yamlContent, 'test-service')).toBe('1.2.3');
+      expect(getVersionFromChartYaml(yamlContent, 'other')).toBe('0.0.1');
+    });
+
+    it('should return undefined if dependency is not found', () => {
+      const chartObj = {
+        dependencies: [{ name: 'test-service', version: '1.2.3' }],
+      };
+      const yamlContent = yaml.stringify(chartObj);
+      expect(getVersionFromChartYaml(yamlContent, 'missing')).toBeUndefined();
+    });
+
+    it('should return undefined for invalid YAML', () => {
+      expect(getVersionFromChartYaml('bad: : yaml', 'test-service')).toBeUndefined();
+    });
+  });
+
+  describe('getVersionFromHelmfileYaml', () => {
+    it('should extract the correct version for a matching release', () => {
+      const helmfileObj = {
+        releases: [
+          { name: 'test-service', version: '2.0.0' },
+          { name: 'other', version: '0.0.1' },
+        ],
+      };
+      const yamlContent = yaml.stringify(helmfileObj);
+      expect(getVersionFromHelmfileYaml(yamlContent, 'test-service')).toBe('2.0.0');
+      expect(getVersionFromHelmfileYaml(yamlContent, 'other')).toBe('0.0.1');
+    });
+
+    it('should return undefined if release is not found', () => {
+      const helmfileObj = {
+        releases: [{ name: 'test-service', version: '2.0.0' }],
+      };
+      const yamlContent = yaml.stringify(helmfileObj);
+      expect(getVersionFromHelmfileYaml(yamlContent, 'missing')).toBeUndefined();
+    });
+
+    it('should return undefined for invalid YAML', () => {
+      expect(getVersionFromHelmfileYaml('bad: : yaml', 'test-service')).toBeUndefined();
+    });
   });
 });
