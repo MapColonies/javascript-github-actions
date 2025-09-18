@@ -47713,6 +47713,20 @@ function getInputs() {
   }
   return result.data;
 }
+function getLastChartPart(chartDirective) {
+  const chartParts = chartDirective.split("/");
+  return chartParts.length > 0 ? chartParts[chartParts.length - 1] ?? "" : "";
+}
+function getVersionIfChartMatches(rel, name) {
+  if (typeof rel === "object" && rel !== null && "chart" in rel && typeof rel.chart === "string" && "version" in rel && typeof rel.version === "string") {
+    const chartDirective = rel.chart;
+    const lastChartPart = getLastChartPart(chartDirective);
+    if (lastChartPart === name) {
+      return rel.version;
+    }
+  }
+  return void 0;
+}
 async function downloadRepoDir(octokit, owner, repo, ref, remoteDir, localDir) {
   const { data } = await octokit.rest.repos.getContent({
     owner,
@@ -47779,8 +47793,9 @@ function updateHelmfileReleaseVersion(filePath, releaseName, version2) {
   }
   if (typeof helmfile === "object" && helmfile !== null && "releases" in helmfile && Array.isArray(helmfile.releases)) {
     for (const rel of helmfile.releases) {
-      if (typeof rel === "object" && rel !== null && "name" in rel && typeof rel.name === "string" && "version" in rel && typeof rel.version === "string" && rel.name === releaseName && rel.version !== version2) {
-        oldVersion = rel.version;
+      const matchedVersion = getVersionIfChartMatches(rel, releaseName);
+      if (typeof matchedVersion === "string" && matchedVersion !== version2) {
+        oldVersion = matchedVersion;
         rel.version = version2;
         updated = true;
       }
@@ -47935,8 +47950,9 @@ function getVersionFromHelmfileYaml(fileContent, chartName) {
     const helmfile = import_yaml.default.parse(fileContent);
     if (typeof helmfile === "object" && helmfile !== null && "releases" in helmfile && Array.isArray(helmfile.releases)) {
       for (const rel of helmfile.releases) {
-        if (typeof rel === "object" && "name" in rel && rel.name === chartName && "version" in rel && typeof rel.version === "string") {
-          return rel.version;
+        const matchedVersion = getVersionIfChartMatches(rel, chartName);
+        if (typeof matchedVersion === "string") {
+          return matchedVersion;
         }
       }
     }

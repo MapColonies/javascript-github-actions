@@ -110,6 +110,42 @@ function getInputs(): ActionInputs {
 }
 
 /**
+ * Extracts the last part of a chart directive (e.g., 'repo/path/chart')
+ * @param chartDirective - The chart string from helmfile
+ * @returns {string} The last part of the chart path
+ * @internal
+ */
+function getLastChartPart(chartDirective: string): string {
+  const chartParts = chartDirective.split('/');
+  return chartParts.length > 0 ? (chartParts[chartParts.length - 1] ?? '') : '';
+}
+
+/**
+ * Extracts the version from a helmfile release if the last chart part matches the given name
+ * @param rel - The release object from helmfile
+ * @param name - The chart name to match
+ * @returns {string|undefined} The version if matched, otherwise undefined
+ * @internal
+ */
+function getVersionIfChartMatches(rel: unknown, name: string): string | undefined {
+  if (
+    typeof rel === 'object' &&
+    rel !== null &&
+    'chart' in rel &&
+    typeof (rel as { chart?: unknown }).chart === 'string' &&
+    'version' in rel &&
+    typeof (rel as { version?: unknown }).version === 'string'
+  ) {
+    const chartDirective = (rel as { chart: string }).chart;
+    const lastChartPart = getLastChartPart(chartDirective);
+    if (lastChartPart === name) {
+      return (rel as { version: string }).version;
+    }
+  }
+  return undefined;
+}
+
+/**
  * @description Recursively downloads a directory from a GitHub repo to a local temp directory using the GitHub API.
  * @param octokit - GitHub client
  * @param owner - Repository owner
@@ -222,17 +258,9 @@ function updateHelmfileReleaseVersion(filePath: string, releaseName: string, ver
   }
   if (typeof helmfile === 'object' && helmfile !== null && 'releases' in helmfile && Array.isArray((helmfile as { releases: unknown }).releases)) {
     for (const rel of (helmfile as { releases: unknown[] }).releases) {
-      if (
-        typeof rel === 'object' &&
-        rel !== null &&
-        'name' in rel &&
-        typeof (rel as { name: unknown }).name === 'string' &&
-        'version' in rel &&
-        typeof (rel as { version: unknown }).version === 'string' &&
-        (rel as { name: string }).name === releaseName &&
-        (rel as { version: string }).version !== version
-      ) {
-        oldVersion = (rel as { version: string }).version;
+      const matchedVersion = getVersionIfChartMatches(rel, releaseName);
+      if (typeof matchedVersion === 'string' && matchedVersion !== version) {
+        oldVersion = matchedVersion;
         (rel as { version: string }).version = version;
         updated = true;
       }
@@ -522,15 +550,10 @@ function getVersionFromHelmfileYaml(fileContent: string, chartName: string): str
   try {
     const helmfile: unknown = yaml.parse(fileContent);
     if (typeof helmfile === 'object' && helmfile !== null && 'releases' in helmfile && Array.isArray((helmfile as { releases?: unknown }).releases)) {
-      for (const rel of (helmfile as { releases: { name?: unknown; version?: unknown }[] }).releases) {
-        if (
-          typeof rel === 'object' &&
-          'name' in rel &&
-          (rel as { name?: unknown }).name === chartName &&
-          'version' in rel &&
-          typeof (rel as { version?: unknown }).version === 'string'
-        ) {
-          return (rel as { version: string }).version;
+      for (const rel of (helmfile as { releases: unknown[] }).releases) {
+        const matchedVersion = getVersionIfChartMatches(rel, chartName);
+        if (typeof matchedVersion === 'string') {
+          return matchedVersion;
         }
       }
     }

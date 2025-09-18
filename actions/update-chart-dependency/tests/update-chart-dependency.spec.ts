@@ -19,10 +19,6 @@ import {
   createPullRequest,
 } from '../main.js';
 import type { ActionInputs } from '../main.js';
-// Helper type for octokit mock
-interface MockOctokit {
-  rest: Record<string, Record<string, unknown>>;
-}
 
 vi.mock('@actions/core');
 vi.mock('@actions/github');
@@ -223,7 +219,7 @@ describe('update-chart-dependency Action', () => {
       };
       const yamlContent = yaml.stringify(helmfileObj);
       readFileSyncSpy.mockReturnValue(yamlContent);
-      const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'test-service', '2.0.0');
+      const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'chart', '2.0.0');
       expect(result.updated).toBe(true);
       expect(result.oldVersion).toBe('0.0.1');
       expect(result.newContent).toContain('version: 2.0.0');
@@ -662,8 +658,8 @@ describe('update-chart-dependency Action', () => {
     it('should extract the correct version for a matching release', () => {
       const helmfileObj = {
         releases: [
-          { name: 'test-service', version: '2.0.0' },
-          { name: 'other', version: '0.0.1' },
+          { name: 'test-service', version: '2.0.0', chart: 'repo/test-service' },
+          { name: 'other', version: '0.0.1', chart: 'repo/other' },
         ],
       };
       const yamlContent = yaml.stringify(helmfileObj);
@@ -697,7 +693,7 @@ describe('update-chart-dependency Action', () => {
     });
 
     it('getExistingVersionInBranch: extracts version from Chart.yaml in branch', async () => {
-      const octokit: MockOctokit = {
+      const octokit = {
         rest: {
           repos: {
             getContent: vi.fn().mockResolvedValue({
@@ -720,7 +716,7 @@ describe('update-chart-dependency Action', () => {
       expect(version).toBe('1.2.3');
     });
     it('getExistingVersionInBranch: returns undefined if file not found', async () => {
-      const octokit: MockOctokit = {
+      const octokit = {
         rest: {
           repos: {
             getContent: vi.fn().mockRejectedValue(new Error('not found')),
@@ -740,7 +736,7 @@ describe('update-chart-dependency Action', () => {
     });
 
     it('downloadRepoDir: handles non-array data from getContent', async () => {
-      const octokit: MockOctokit = {
+      const octokit = {
         rest: {
           repos: {
             getContent: vi.fn().mockResolvedValue({ data: {} }),
@@ -753,7 +749,7 @@ describe('update-chart-dependency Action', () => {
     });
 
     it('createBranch: throws if getRef fails', async () => {
-      const octokit: MockOctokit = {
+      const octokit = {
         rest: {
           git: {
             getRef: vi.fn().mockRejectedValue(new Error('fail')), // Simulate error
@@ -764,7 +760,7 @@ describe('update-chart-dependency Action', () => {
       await expect(createBranch(octokit as unknown as ReturnType<typeof github.getOctokit>, 'owner', 'repo', 'base', 'new')).rejects.toThrow('fail');
     });
     it('createBranch: throws if createRef fails', async () => {
-      const octokit: MockOctokit = {
+      const octokit = {
         rest: {
           git: {
             getRef: vi.fn().mockResolvedValue({ data: { object: { sha: 'sha' } } }),
@@ -778,7 +774,7 @@ describe('update-chart-dependency Action', () => {
     });
 
     it('updateFilesInBranch: warns if createOrUpdateFileContents fails', async () => {
-      const octokit: MockOctokit = {
+      const octokit = {
         rest: {
           repos: {
             createOrUpdateFileContents: vi.fn().mockRejectedValue(new Error('fail-update')),
@@ -795,7 +791,7 @@ describe('update-chart-dependency Action', () => {
     });
 
     it('createPullRequest: throws if PR creation fails', async () => {
-      const octokit: MockOctokit = {
+      const octokit = {
         rest: {
           pulls: {
             create: vi.fn().mockRejectedValue(new Error('fail-pr')),
@@ -809,6 +805,37 @@ describe('update-chart-dependency Action', () => {
           oldVersion: '1.0.0',
         })
       ).rejects.toThrow('fail-pr');
+    });
+
+    it('should update release version if last chart part matches', () => {
+      const helmfileObj = {
+        releases: [
+          { name: 'test-service', version: '0.0.1', chart: 'repo/chart' },
+          { name: 'other', version: '1.0.0', chart: 'repo/other' },
+        ],
+      };
+      const yamlContent = yaml.stringify(helmfileObj);
+      readFileSyncSpy.mockReturnValue(yamlContent);
+      const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'chart', '2.0.0');
+      expect(result.updated).toBe(true);
+      expect(result.oldVersion).toBe('0.0.1');
+      expect(result.newContent).toContain('version: 2.0.0');
+    });
+
+    it('should not update if last chart part does not match', () => {
+      const helmfileObj = {
+        releases: [{ name: 'test-service', version: '0.0.1', chart: 'repo/chart' }],
+      };
+      const yamlContent = yaml.stringify(helmfileObj);
+      readFileSyncSpy.mockReturnValue(yamlContent);
+      const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'other', '2.0.0');
+      expect(result.updated).toBe(false);
+    });
+
+    it('should return updated: false for invalid YAML', () => {
+      readFileSyncSpy.mockReturnValue('bad: : yaml');
+      const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'chart', '2.0.0');
+      expect(result.updated).toBe(false);
     });
   });
 });
