@@ -47691,7 +47691,6 @@ config(en_default());
 // actions/update-chart-dependency/main.ts
 var CHART_FILE_NAME = "Chart";
 var HELMFILE_NAME = "helmfile";
-var PR_TITLE_PREFIX = "deps: update Helm dependency";
 var DEFAULT_BASE_BRANCH = "master";
 var actionInputsSchema = external_exports.object({
   chartName: external_exports.string().min(1, { message: "chart-name is required" }),
@@ -47887,7 +47886,14 @@ async function updateFilesInBranch(octokit, owner, repo, branchName, dependency,
     }
   }
 }
-async function createPullRequest(octokit, owner, repo, branchName, dependencyName, newVersion, baseBranch, fileUpdate) {
+async function getExistingPrNumber(octokit, owner, repo, branchName) {
+  const { data: prs } = await octokit.rest.pulls.list({ owner, repo, head: `${owner}:${branchName}`, state: "open" });
+  if (Array.isArray(prs) && prs.length > 0 && typeof prs[0]?.number === "number") {
+    return prs[0].number;
+  }
+  return void 0;
+}
+async function createPullRequest(octokit, owner, repo, branchName, prTitle, prBody, dependencyName, newVersion, baseBranch, fileUpdate) {
   const oldVersion = fileUpdate.oldVersion;
   const chart = fileUpdate.path;
   const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: \`${oldVersion}\`)` : "";
@@ -47900,10 +47906,20 @@ async function createPullRequest(octokit, owner, repo, branchName, dependencyNam
   await octokit.rest.pulls.create({
     owner,
     repo,
-    title: `${PR_TITLE_PREFIX} ${dependencyName} in chart ${chart}`,
+    title: `deps(${dependencyName}): update from ${oldVersion} to ${newVersion} in chart ${chart}`,
     head: branchName,
     base: baseBranch,
     body
+  });
+}
+async function updatePullRequest(octokit, owner, repo, prNumber, prTitle, prBody) {
+  await octokit.rest.pulls.update({
+    owner,
+    repo,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    pull_number: prNumber,
+    title: prTitle,
+    body: prBody
   });
 }
 async function branchExistsRemote(octokit, owner, repo, branchName) {
@@ -48008,31 +48024,46 @@ async function run() {
           continue;
         }
         (0, import_core7.info)(`Updating dependency ${chartName} in ${absFilePath}.`);
-        const lastDotIndex = absFilePath.lastIndexOf(".");
-        const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
+        const lastSlashIndex = absFilePath.lastIndexOf("/");
+        const dirPath = absFilePath.substring(0, lastSlashIndex).slice(tempDir.length + 1);
         const sanitizedFilePath = dirPath.split("/").join("-");
         const branchName = `update-helm-chart-${chartName}-${sanitizedFilePath}`;
         const branchExists = await branchExistsRemote(octokit, owner, repo, branchName);
         const existingVersion = branchExists ? await getExistingVersionInBranch(octokit, owner, repo, relFilePath, branchName, fileName, chartName) : void 0;
-        const shouldUpdate = !branchExists || shouldUpdateBranch(version2, existingVersion);
+        const shouldUpdate = shouldUpdateBranch(version2, existingVersion);
         if (!branchExists) {
           (0, import_core7.info)(`Branch '${branchName}' does not exist, creating it from '${branch}'.`);
           await createBranch(octokit, owner, repo, branch, branchName);
+        } else if (!shouldUpdate) {
+          (0, import_core7.info)(`Branch '${branchName}' exists and has version '${existingVersion}' which is newer or equal to '${version2}'. Skipping update.`);
+          continue;
         } else {
           (0, import_core7.info)(`Branch '${branchName}' exists, updating with changes.`);
         }
-        if (shouldUpdate) {
-          await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version2, [
-            { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
-          ]);
-          await createPullRequest(octokit, owner, repo, branchName, chartName, version2, branch, {
+        await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version2, [
+          { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
+        ]);
+        const prNumber = await getExistingPrNumber(octokit, owner, repo, branchName);
+        const prTitle = `deps(${chartName}): update from ${updateResult.oldVersion} to ${version2} in chart ${chartDir}`;
+        const body = [
+          `Update Helm chart dependency \`${chartName}\` to version \`${version2}\`.`,
+          "",
+          "### Updated charts:",
+          `- \`${chartDir}\`${updateResult.oldVersion}`
+        ].join("\n");
+        if (prNumber !== void 0) {
+          (0, import_core7.info)(`Pull request for branch '${branchName}' already exists and will be updated.`);
+          await updatePullRequest(octokit, owner, repo, prNumber, prTitle, body);
+        } else {
+          (0, import_core7.info)(`No existing pull request for branch '${branchName}', a new one will be created.`);
+          await createPullRequest(octokit, owner, repo, branchName, prTitle, body, chartName, version2, branch, {
             path: dirPath,
             content: newContent,
             oldVersion: updateResult.oldVersion
           });
-          (0, import_core7.info)(`Successfully created PR to update dependency '${chartName}' to version ${version2} in chart '${chartDir}'`);
-          updatedAny = true;
         }
+        (0, import_core7.info)(`Successfully updated dependency '${chartName}' to version ${version2} in chart '${chartDir}'`);
+        updatedAny = true;
       } catch (chartError) {
         (0, import_core7.warning)(`Failed to process chart '${chartDir}': ${chartError instanceof Error ? chartError.message : ""}`);
       }

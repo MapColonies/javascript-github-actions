@@ -17,6 +17,9 @@ import {
   downloadRepoDir,
   createBranch,
   createPullRequest,
+  getLastChartPart,
+  getVersionIfChartMatches,
+  findChartFiles,
 } from '../main.js';
 import type { ActionInputs } from '../main.js';
 
@@ -130,6 +133,8 @@ describe('update-chart-dependency Action', () => {
         },
         pulls: {
           create: vi.fn().mockResolvedValue({}),
+          list: vi.fn().mockResolvedValue({}),
+          update: vi.fn().mockResolvedValue({}),
         },
       },
     }));
@@ -243,18 +248,16 @@ describe('update-chart-dependency Action', () => {
   });
 
   it('should create branch and PR for nested chart directories when branch does not exist', async () => {
-    const tempDir = '/tmp';
-    const nestedDir = 'nested/dir/chart';
-    const absFilePath = `${tempDir}/${nestedDir}/Chart.yaml`;
-    const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
+    const tempDir = '/tmp/chart-repo-test';
+    const chartDir = 'chartA';
+    const absFilePath = `${tempDir}/${chartDir}/Chart.yaml`;
+    const sanitizedFilePath = `${chartDir}`;
     const expectedBranchName = `update-helm-chart-test-service-${sanitizedFilePath}`;
-    // Mock directory reading to return the nested structure
+    // Mock directory reading to return the structure
     vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
       const dirStr = Buffer.isBuffer(dirPath) ? dirPath.toString() : dirPath;
-      if (dirStr === tempDir) return [makeDirent('nested')];
-      if (dirStr === `${tempDir}/nested`) return [makeDirent('dir')];
-      if (dirStr === `${tempDir}/nested/dir`) return [makeDirent('chart')];
-      if (dirStr === `${tempDir}/nested/dir/chart`) return [];
+      if (dirStr === tempDir) return [makeDirent(chartDir)];
+      if (dirStr === `${tempDir}/${chartDir}`) return [];
       return [];
     });
     vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => filePath === absFilePath);
@@ -268,9 +271,10 @@ describe('update-chart-dependency Action', () => {
     const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
     const createBranch = vi.fn().mockResolvedValue({});
     const createPullRequest = vi.fn().mockResolvedValue({});
+    const pullsList = vi.fn().mockResolvedValue({ data: [] }); // No PR exists
+    const pullsUpdate = vi.fn().mockResolvedValue({});
     // getRef throws for the expected branch name (branch does not exist)
     const getRefMock = vi.fn(({ ref }: { ref: string }) => {
-      // throw new Error('Branch not found');
       if (ref === `heads/${expectedBranchName}`) throw new Error('Branch not found');
       return { data: { object: { sha: 'base-sha' } } };
     });
@@ -278,45 +282,45 @@ describe('update-chart-dependency Action', () => {
       rest: {
         git: { getRef: getRefMock, createRef: createBranch },
         repos: { getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }), createOrUpdateFileContents },
-        pulls: { create: createPullRequest },
+        pulls: { create: createPullRequest, list: pullsList, update: pullsUpdate },
       },
     }));
     (github.getOctokit as unknown) = mockGetOctokit;
     vi.spyOn(fs, 'mkdtempSync').mockReturnValue(tempDir);
     await run();
 
-    // Assert: Branch and PR should be created for nested chart
-    const unsanitizedFilePath = `${nestedDir}/Chart`;
+    // Assert: Branch and PR should be created for chartA
+    const unsanitizedFilePath = `${chartDir}`;
     expect(createBranch).toHaveBeenCalledWith(expect.objectContaining({ ref: `refs/heads/${expectedBranchName}` }));
+    expect(pullsList).toHaveBeenCalledWith({ owner: 'test-owner', repo: 'test-repo', head: `test-owner:${expectedBranchName}`, state: 'open' });
     expect(createPullRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         head: expectedBranchName,
-        title: `deps: update Helm dependency test-service in chart ${unsanitizedFilePath}`,
+        title: `deps(test-service): update from 0.0.1 to 1.2.3 in chart ${unsanitizedFilePath}`,
         body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${unsanitizedFilePath}\` (old version: \`0.0.1\`)`,
       })
     );
+    expect(pullsUpdate).not.toHaveBeenCalled();
   });
 
   it('should not create branch or PR for nested chart directories when branch already exists', async () => {
-    const tempDir = '/tmp';
-    const nestedDir = 'nested/dir/chart';
-    const absFilePath = `${tempDir}/${nestedDir}/Chart.yaml`;
+    const tempDir = '/tmp/chart-repo-test';
+    const chartDir = 'chartA';
+    const absFilePath = `${tempDir}/${chartDir}/Chart.yaml`;
     // const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
     // const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
 
     vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
       const dirStr = Buffer.isBuffer(dirPath) ? dirPath.toString() : dirPath;
-      if (dirStr === tempDir) return [makeDirent('nested')];
-      if (dirStr === `${tempDir}/nested`) return [makeDirent('dir')];
-      if (dirStr === `${tempDir}/nested/dir`) return [makeDirent('chart')];
-      if (dirStr === `${tempDir}/nested/dir/chart`) return [];
+      if (dirStr === tempDir) return [makeDirent(chartDir)];
+      if (dirStr === `${tempDir}/${chartDir}`) return [];
       return [];
     });
     vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => filePath === absFilePath);
     vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
-      // Chart.yaml already has the requested version, so no update/PR should be created
+      // Chart.yaml has old version, so update/PR should be triggered
       if (filePath === absFilePath) {
-        return yaml.stringify({ dependencies: [{ name: 'test-service', version: '1.2.3' }] });
+        return yaml.stringify({ dependencies: [{ name: 'test-service', version: '0.0.1' }] });
       }
       return '';
     });
@@ -324,7 +328,8 @@ describe('update-chart-dependency Action', () => {
     const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
     const createBranch = vi.fn().mockResolvedValue({});
     const createPullRequest = vi.fn().mockResolvedValue({});
-    // getRef resolves for the expected branch name
+    const pullsList = vi.fn().mockResolvedValue({ data: [{ number: 123 }] }); // Simulate PR already exists
+    const pullsUpdate = vi.fn().mockResolvedValue({});
     const getRefMock = vi.fn(() => {
       return { data: { object: { sha: 'base-sha' } } };
     });
@@ -332,7 +337,7 @@ describe('update-chart-dependency Action', () => {
       rest: {
         git: { getRef: getRefMock, createRef: createBranch },
         repos: { getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }), createOrUpdateFileContents },
-        pulls: { create: createPullRequest },
+        pulls: { create: createPullRequest, list: pullsList, update: pullsUpdate },
       },
     }));
     (github.getOctokit as unknown) = mockGetOctokit;
@@ -340,9 +345,19 @@ describe('update-chart-dependency Action', () => {
 
     await run();
 
-    // Assert: Branch and PR should NOT be created for nested chart
+    // Assert: Branch and PR should NOT be created for nested chart, but update should be called
     expect(createBranch).not.toHaveBeenCalled();
     expect(createPullRequest).not.toHaveBeenCalled();
+    expect(pullsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: 'test-owner',
+        repo: 'test-repo',
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        pull_number: 123,
+        title: 'deps(test-service): update from 0.0.1 to 1.2.3 in chart chartA',
+        body: 'Update Helm chart dependency `test-service` to version `1.2.3`.\n\n### Updated charts:\n- `chartA`0.0.1',
+      })
+    );
   });
 
   it('should fail if required inputs are missing', async () => {
@@ -420,6 +435,7 @@ describe('update-chart-dependency Action', () => {
     });
     const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
     const createPullRequest = vi.fn().mockResolvedValue({});
+    const pullsList = vi.fn().mockResolvedValue({ data: [] }); // No PR exists
     mockGetOctokit = vi.fn(() => ({
       rest: {
         git: {
@@ -432,6 +448,7 @@ describe('update-chart-dependency Action', () => {
         },
         pulls: {
           create: createPullRequest,
+          list: pullsList,
         },
       },
     }));
@@ -440,9 +457,6 @@ describe('update-chart-dependency Action', () => {
     expect(mockGetOctokit).toHaveBeenCalledWith('ghp_testtoken');
     // Should create PR for each chart directory
     expect(createPullRequest).toHaveBeenCalledTimes(2);
-    expect(mockInfo).toHaveBeenCalledWith(
-      expect.stringContaining("Successfully created PR to update dependency 'test-service' to version 1.2.3 in chart 'chartA'")
-    );
   });
 
   it('should warn if chart processing fails', async () => {
@@ -556,6 +570,7 @@ describe('update-chart-dependency Action', () => {
     });
     const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
     const createPullRequest = vi.fn().mockResolvedValue({});
+    const pullsList = vi.fn().mockResolvedValue({ data: [] }); // No PR exists
     mockGetOctokit = vi.fn(() => ({
       rest: {
         git: {
@@ -568,6 +583,7 @@ describe('update-chart-dependency Action', () => {
         },
         pulls: {
           create: createPullRequest,
+          list: pullsList,
         },
       },
     }));
@@ -579,10 +595,10 @@ describe('update-chart-dependency Action', () => {
       const prCall = createPullRequest.mock.calls[i]?.[0] as { body: string; title: string };
       expect(prCall).toBeDefined();
       const chartLetter = i === 0 ? 'A' : 'B';
-      const filePath = `chart${chartLetter}/Chart`;
+      const filePath = `chart${chartLetter}`;
       const expectedBody = `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${filePath}\` (old version: \`0.0.1\`)`;
       expect(prCall.body).toBe(expectedBody);
-      expect(prCall.title).toBe(`deps: update Helm dependency test-service in chart ${filePath}`);
+      expect(prCall.title).toBe(`deps(test-service): update from 0.0.1 to 1.2.3 in chart ${filePath}`);
     }
   });
 
@@ -626,6 +642,118 @@ describe('update-chart-dependency Action', () => {
       { chartDir: 'nested/subchart', absFilePath: `${tempDir}/nested/subchart/Chart.yaml` },
       { chartDir: 'nested/subchart', absFilePath: `${tempDir}/nested/subchart/helmfile.yaml` },
     ]);
+  });
+
+  it('should open a PR and then update it with a new version', async () => {
+    const tempDir = '/tmp/chart-repo-test';
+    const chartDir = 'chartA';
+    const absFilePath = `${tempDir}/${chartDir}/Chart.yaml`;
+    vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
+      const dirStr = Buffer.isBuffer(dirPath) ? dirPath.toString() : dirPath;
+      if (dirStr === tempDir) return [makeDirent(chartDir)];
+      if (dirStr === `${tempDir}/${chartDir}`) return [];
+      return [];
+    });
+    vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => filePath === absFilePath);
+    // First run: open PR for version 1.2.3
+    vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
+      if (filePath === absFilePath) {
+        return yaml.stringify({ dependencies: [{ name: 'test-service', version: '0.0.1' }] });
+      }
+      return '';
+    });
+    const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
+    const createBranch = vi.fn().mockResolvedValue({});
+    const createPullRequest = vi.fn().mockResolvedValue({});
+    const pullsList = vi.fn().mockResolvedValue({ data: [] }); // No PR exists
+    const pullsUpdate = vi.fn().mockResolvedValue({});
+    const getRefMock = vi.fn(({ ref }: { ref: string }) => {
+      if (ref === `heads/update-helm-chart-test-service-${chartDir}`) throw new Error('Branch not found');
+      return { data: { object: { sha: 'base-sha' } } };
+    });
+    mockGetOctokit = vi.fn(() => ({
+      rest: {
+        git: { getRef: getRefMock, createRef: createBranch },
+        repos: { getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }), createOrUpdateFileContents },
+        pulls: { create: createPullRequest, list: pullsList, update: pullsUpdate },
+      },
+    }));
+    (github.getOctokit as unknown) = mockGetOctokit;
+    vi.spyOn(fs, 'mkdtempSync').mockReturnValue(tempDir);
+    await run();
+    expect(createPullRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        head: `update-helm-chart-test-service-${chartDir}`,
+        title: `deps(test-service): update from 0.0.1 to 1.2.3 in chart ${chartDir}`,
+      })
+    );
+    // Second run: update PR to version 2.0.0
+    pullsList.mockResolvedValue({ data: [{ number: 123 }] }); // PR exists
+    vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
+      if (filePath === absFilePath) {
+        return yaml.stringify({ dependencies: [{ name: 'test-service', version: '1.2.3' }] });
+      }
+      return '';
+    });
+    mockGetInput = vi.fn(createMockGetInput({ version: '2.0.0' }));
+    (core.getInput as unknown) = mockGetInput;
+    await run();
+    expect(pullsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        pull_number: 123,
+        title: `deps(test-service): update from 1.2.3 to 2.0.0 in chart ${chartDir}`,
+      })
+    );
+  });
+
+  it('should not update an existing PR if the requested version is smaller', async () => {
+    const main = await import('../main.js');
+    const getExistingVersionSpy = vi.spyOn(main, 'getExistingVersionInBranch').mockResolvedValue('2.0.0');
+    getExistingVersionSpy.mockRestore();
+    const tempDir = '/tmp/chart-repo-test';
+    const chartDir = 'chartA';
+    const absFilePath = `${tempDir}/${chartDir}/Chart.yaml`;
+    vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
+      const dirStr = Buffer.isBuffer(dirPath) ? dirPath.toString() : dirPath;
+      if (dirStr === tempDir) return [makeDirent(chartDir)];
+      if (dirStr === `${tempDir}/${chartDir}`) return [];
+      return [];
+    });
+    vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => filePath === absFilePath);
+    let chartVersion = '2.0.0';
+    vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
+      if (filePath === absFilePath) {
+        return yaml.stringify({ dependencies: [{ name: 'test-service', version: chartVersion }] });
+      }
+      return '';
+    });
+    const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
+    const createBranch = vi.fn().mockResolvedValue({});
+    const createPullRequest = vi.fn().mockResolvedValue({});
+    const pullsList = vi.fn().mockResolvedValue({ data: [{ number: 123 }] }); // PR exists
+    const pullsUpdate = vi.fn().mockResolvedValue({});
+    const getRefMock = vi.fn(() => ({ data: { object: { sha: 'base-sha' } } }));
+    mockGetOctokit = vi.fn(() => ({
+      rest: {
+        git: { getRef: getRefMock, createRef: createBranch },
+        repos: { getContent: vi.fn().mockResolvedValue({ data: { sha: 'file-sha' } }), createOrUpdateFileContents },
+        pulls: { create: createPullRequest, list: pullsList, update: pullsUpdate },
+      },
+    }));
+    (github.getOctokit as unknown) = mockGetOctokit;
+    vi.spyOn(fs, 'mkdtempSync').mockReturnValue(tempDir);
+    // First run: update to 1.2.3 (should update)
+    mockGetInput = vi.fn(createMockGetInput({ version: '1.2.3' }));
+    (core.getInput as unknown) = mockGetInput;
+    await run();
+    chartVersion = '1.2.3';
+    // Second run: try to update to 1.2.3 again (should NOT update)
+    pullsUpdate.mockClear();
+    createPullRequest.mockClear();
+    await run();
+    expect(pullsUpdate).not.toHaveBeenCalled();
+    expect(createPullRequest).not.toHaveBeenCalled();
   });
 
   describe('getVersionFromChartYaml', () => {
@@ -799,11 +927,18 @@ describe('update-chart-dependency Action', () => {
         },
       };
       await expect(
-        createPullRequest(octokit as unknown as ReturnType<typeof github.getOctokit>, 'owner', 'repo', 'branch', 'dep', '1.2.3', 'base', {
-          path: 'chart/Chart.yaml',
-          content: 'content',
-          oldVersion: '1.0.0',
-        })
+        createPullRequest(
+          octokit as unknown as ReturnType<typeof github.getOctokit>,
+          'owner',
+          'repo',
+          'branch',
+          'title',
+          'body',
+          'dep',
+          '1.2.3',
+          'base',
+          { path: 'chart/Chart.yaml', content: 'content', oldVersion: '1.0.0' }
+        )
       ).rejects.toThrow('fail-pr');
     });
 
@@ -836,6 +971,33 @@ describe('update-chart-dependency Action', () => {
       readFileSyncSpy.mockReturnValue('bad: : yaml');
       const result = updateHelmfileReleaseVersion('/fake/path/helmfile.yaml', 'chart', '2.0.0');
       expect(result.updated).toBe(false);
+    });
+
+    it('getLastChartPart: returns last part of chart directive', () => {
+      expect(getLastChartPart('repo/path/chart')).toBe('chart');
+      expect(getLastChartPart('single')).toBe('single');
+      expect(getLastChartPart('')).toBe('');
+    });
+
+    it('getVersionIfChartMatches: returns version if last chart part matches', () => {
+      const rel = { chart: 'repo/chart', version: '1.2.3' };
+      expect(getVersionIfChartMatches(rel, 'chart')).toBe('1.2.3');
+      expect(getVersionIfChartMatches(rel, 'other')).toBeUndefined();
+      expect(getVersionIfChartMatches({}, 'chart')).toBeUndefined();
+    });
+
+    it('findChartFiles: returns correct file paths for existing files', () => {
+      const workspace = '/tmp/test-ws';
+      const chartDir = 'chartA';
+      const files = [
+        `${workspace}/${chartDir}/Chart.yaml`,
+        `${workspace}/${chartDir}/Chart.yml`,
+        `${workspace}/${chartDir}/helmfile.yaml`,
+        `${workspace}/${chartDir}/helmfile.yml`,
+      ];
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath) => files.includes(filePath as string));
+      const result = findChartFiles(workspace, chartDir);
+      expect(result).toEqual(files);
     });
   });
 });

@@ -1,13 +1,13 @@
 # Update Helm Chart Dependencies GitHub Action
 
-This GitHub Action updates the version of a specific dependency in the `Chart` and `helmfile` yaml files for one or more directories in a remote repository, and for each creates or updates a dedicated branch with the chart changes and opens a pull request.
+This GitHub Action updates the version of a specific dependency in the `Chart` and `helmfile` yaml files for one or more directories in a remote repository. For each it creates or updates a dedicated branch with the chart changes and opens or updates a pull request.
 
 ## Features
 
 - Accepts a dependency service name and version as inputs.
 - Finds all chart directories in a remote repository.
 - Updates the version of the specified chart in all Chart.yaml and helmfile.yaml files where it is listed as a dependency.
-- Creates or updates a dedicated branch for each change and opens a PR with a summary of the update details.
+- Creates or updates a dedicated branch for each change and opens ot updates a PR with a summary of the update details.
 - Uses only Node.js built-in modules and the official GitHub Actions toolkit.
 
 ## Inputs
