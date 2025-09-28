@@ -676,9 +676,9 @@ async function run(): Promise<void> {
 
         info(`Updating dependency ${chartName} in ${absFilePath}.`);
 
-        const lastSlashIndex = absFilePath.lastIndexOf('/');
+        const lastDotIndex = absFilePath.lastIndexOf('.');
         // Remove base path to our temporary cloned directory.
-        const dirPath = absFilePath.substring(0, lastSlashIndex).slice(tempDir.length + 1);
+        const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
         // Sanitize file path for branch name (replace slashes with dashes, remove leading slash).
         const sanitizedFilePath = dirPath.split('/').join('-');
         const branchName = `update-helm-chart-${chartName}-${sanitizedFilePath}`;

@@ -48029,8 +48029,8 @@ async function run() {
           continue;
         }
         (0, import_core7.info)(`Updating dependency ${chartName} in ${absFilePath}.`);
-        const lastSlashIndex = absFilePath.lastIndexOf("/");
-        const dirPath = absFilePath.substring(0, lastSlashIndex).slice(tempDir.length + 1);
+        const lastDotIndex = absFilePath.lastIndexOf(".");
+        const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
         const sanitizedFilePath = dirPath.split("/").join("-");
         const branchName = `update-helm-chart-${chartName}-${sanitizedFilePath}`;
         const branchExists = await branchExistsRemote(octokit, owner, repo, branchName);

@@ -172,16 +172,6 @@ describe('update-chart-dependency Action', () => {
 
   describe('updateChartYamlDependency', () => {
     it('should update dependency version in Chart.yaml', () => {
-      const chartObj = {
-        apiVersion: 'v2',
-        name: 'chart',
-        version: '1.0.0',
-        dependencies: [
-          { name: 'test-service', version: '0.0.1', repository: 'https://example.com/charts' },
-          { name: 'other', version: '9.9.9' },
-        ],
-      };
-      const yamlContent = yaml.stringify(chartObj);
       readFileSyncSpy.mockImplementation((filePath) => {
         if (filePath === '/fake/path/Chart.yaml') return yamlContent;
         return '';
@@ -194,9 +184,6 @@ describe('update-chart-dependency Action', () => {
 
     it('should not affect other dependencies when updating one', () => {
       const chartObj = {
-        apiVersion: 'v2',
-        name: 'chart',
-        version: '1.0.0',
         dependencies: [
           { name: 'test-service', version: '0.0.1', repository: 'https://example.com/charts' },
           { name: 'other', version: '9.9.9', repository: 'https://example.com/charts2' },
@@ -250,7 +237,6 @@ describe('update-chart-dependency Action', () => {
     });
 
     it('should return updated: false if dependencies is an empty array', () => {
-      // Chart.yaml with empty dependencies
       const chartObj = { apiVersion: 'v2', name: 'chart', version: '1.0.0', dependencies: [] };
       readFileSyncSpy.mockImplementation((filePath) => {
         if (filePath === '/fake/path/Chart.yaml') return yaml.stringify(chartObj);
@@ -307,8 +293,9 @@ describe('update-chart-dependency Action', () => {
     const tempDir = '/tmp/chart-repo-test';
     const chartDir = 'chartA';
     const absFilePath = `${tempDir}/${chartDir}/Chart.yaml`;
-    const sanitizedFilePath = `${chartDir}`;
+    const sanitizedFilePath = `${chartDir}-Chart`;
     const expectedBranchName = `update-helm-chart-test-service-${sanitizedFilePath}`;
+    const chartPath = `${chartDir}/Chart`;
     vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
       if (dirPath === tempDir) {
         return [makeDirent(chartDir, true)];
@@ -317,15 +304,7 @@ describe('update-chart-dependency Action', () => {
     });
     vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => filePath === absFilePath);
     vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
-      if (filePath === absFilePath) {
-        return yaml.stringify({
-          apiVersion: 'v2',
-          name: chartDir,
-          version: '1.0.0',
-          dependencies: [{ name: 'test-service', version: '0.0.1', repository: 'https://example.com/charts' }],
-        });
-      }
-      return '';
+      return filePath === absFilePath ? yamlContent : '';
     });
     const createOrUpdateFileContents = vi.fn().mockResolvedValue({});
     const createBranch = vi.fn().mockResolvedValue({});
@@ -349,7 +328,6 @@ describe('update-chart-dependency Action', () => {
     await run();
 
     // Assert: Branch and PR should be created for chartA
-    const unsanitizedFilePath = `${chartDir}`;
     expect(createBranch).toHaveBeenCalledWith(expect.objectContaining({ ref: `refs/heads/${expectedBranchName}` }));
     expect(pullsList).toHaveBeenCalledWith({ owner: 'test-owner', repo: 'test-repo', head: `test-owner:${expectedBranchName}`, state: 'open' });
     expect(createPullRequest).toHaveBeenCalledWith({
@@ -357,8 +335,8 @@ describe('update-chart-dependency Action', () => {
       repo: 'test-repo',
       head: expectedBranchName,
       base: 'master',
-      title: `deps(test-service): update from  (old version: \`0.0.1\`) to 1.2.3 in chart ${unsanitizedFilePath}`,
-      body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${unsanitizedFilePath}\` (old version: \`0.0.1\`)`,
+      title: `deps(test-service): update from  (old version: \`0.0.1\`) to 1.2.3 in chart ${chartPath}`,
+      body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${chartPath}\` (old version: \`0.0.1\`)`,
     });
     expect(pullsUpdate).not.toHaveBeenCalled();
   });
@@ -367,8 +345,6 @@ describe('update-chart-dependency Action', () => {
     const tempDir = '/tmp/chart-repo-test';
     const chartDir = 'chartA';
     const absFilePath = `${tempDir}/${chartDir}/Chart.yaml`;
-    // const sanitizedFilePath = `${nestedDir.split('/').join('-')}-Chart`;
-    // const expectedBranchName = `update-helm-chart-test-service-1.2.3-${sanitizedFilePath}`;
 
     vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath: fs.PathLike) => {
       const dirStr = Buffer.isBuffer(dirPath) ? dirPath.toString() : dirPath;
@@ -378,7 +354,6 @@ describe('update-chart-dependency Action', () => {
     });
     vi.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => filePath === absFilePath);
     vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: fs.PathOrFileDescriptor) => {
-      // Chart.yaml has old version, so update/PR should be triggered
       if (filePath === absFilePath) {
         return yaml.stringify({ dependencies: [{ name: 'test-service', version: '0.0.1' }] });
       }
@@ -413,8 +388,8 @@ describe('update-chart-dependency Action', () => {
       repo: 'test-repo',
       // eslint-disable-next-line @typescript-eslint/naming-convention
       pull_number: 123,
-      title: 'deps(test-service): update from  (old version: `0.0.1`) to 1.2.3 in chart chartA',
-      body: 'Update Helm chart dependency `test-service` to version `1.2.3`.\n\n### Updated charts:\n- `chartA` (old version: `0.0.1`)',
+      title: 'deps(test-service): update from  (old version: `0.0.1`) to 1.2.3 in chart chartA/Chart',
+      body: 'Update Helm chart dependency `test-service` to version `1.2.3`.\n\n### Updated charts:\n- `chartA/Chart` (old version: `0.0.1`)',
     });
   });
 
@@ -643,7 +618,7 @@ describe('update-chart-dependency Action', () => {
       const prCall = createPullRequest.mock.calls[i]?.[0] as { body: string; title: string };
       expect(prCall).toBeDefined();
       const chartLetter = i === 0 ? 'A' : 'B';
-      const filePath = `chart${chartLetter}`;
+      const filePath = `chart${chartLetter}/Chart`;
       const expectedBody = `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${filePath}\` (old version: \`0.0.1\`)`;
       expect(prCall.body).toBe(expectedBody);
       expect(prCall.title).toBe(`deps(test-service): update from  (old version: \`0.0.1\`) to 1.2.3 in chart ${filePath}`);
@@ -713,11 +688,11 @@ describe('update-chart-dependency Action', () => {
     expect(createPullRequest).toHaveBeenCalledWith({
       base: 'master',
       body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.
-\n### Updated charts:\n- \`${chartDir}\` (old version: \`0.0.1\`)`,
-      head: `update-helm-chart-test-service-${chartDir}`,
+\n### Updated charts:\n- \`${chartDir}/Chart\` (old version: \`0.0.1\`)`,
+      head: `update-helm-chart-test-service-${chartDir}-Chart`,
       owner: 'test-owner',
       repo: 'test-repo',
-      title: `deps(test-service): update from  (old version: \`0.0.1\`) to 1.2.3 in chart ${chartDir}`,
+      title: `deps(test-service): update from  (old version: \`0.0.1\`) to 1.2.3 in chart ${chartDir}/Chart`,
     });
     // Second run: update PR to version 2.0.0
     pullsList.mockResolvedValue({ data: [{ number: 123 }] }); // PR exists
@@ -735,9 +710,9 @@ describe('update-chart-dependency Action', () => {
       pull_number: 123,
       owner: 'test-owner',
       repo: 'test-repo',
-      title: `deps(test-service): update from  (old version: \`1.2.3\`) to 2.0.0 in chart ${chartDir}`,
+      title: `deps(test-service): update from  (old version: \`1.2.3\`) to 2.0.0 in chart ${chartDir}/Chart`,
       body: `Update Helm chart dependency \`test-service\` to version \`2.0.0\`.
-\n### Updated charts:\n- \`${chartDir}\` (old version: \`1.2.3\`)`,
+\n### Updated charts:\n- \`${chartDir}/Chart\` (old version: \`1.2.3\`)`,
     });
   });
 
