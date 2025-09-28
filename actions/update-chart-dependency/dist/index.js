@@ -48030,7 +48030,9 @@ async function run() {
         }
         (0, import_core7.info)(`Updating dependency ${chartName} in ${absFilePath}.`);
         const lastDotIndex = absFilePath.lastIndexOf(".");
-        const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
+        const filePath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
+        const lastSlashIndex = absFilePath.lastIndexOf("/");
+        const dirPath = filePath.substring(0, lastSlashIndex);
         const sanitizedFilePath = dirPath.split("/").join("-");
         const branchName = `update-helm-chart-${chartName}-${sanitizedFilePath}`;
         const branchExists = await branchExistsRemote(octokit, owner, repo, branchName);
@@ -48046,7 +48048,7 @@ async function run() {
           ]);
           (0, import_core7.info)(`Creating or updating PR for branch '${branchName}'.`);
           await handlePullRequest(octokit, owner, repo, branchName, chartName, version2, branch, {
-            path: dirPath,
+            path: filePath,
             content: newContent,
             oldVersion: updateResult.oldVersion
           });

@@ -678,7 +678,11 @@ async function run(): Promise<void> {
 
         const lastDotIndex = absFilePath.lastIndexOf('.');
         // Remove base path to our temporary cloned directory.
-        const dirPath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
+        const filePath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
+
+        const lastSlashIndex = absFilePath.lastIndexOf('/');
+        const dirPath = filePath.substring(0, lastSlashIndex);
+
         // Sanitize file path for branch name (replace slashes with dashes, remove leading slash).
         const sanitizedFilePath = dirPath.split('/').join('-');
         const branchName = `update-helm-chart-${chartName}-${sanitizedFilePath}`;
@@ -703,7 +707,7 @@ async function run(): Promise<void> {
 
           info(`Creating or updating PR for branch '${branchName}'.`);
           await handlePullRequest(octokit, owner, repo, branchName, chartName, version, branch, {
-            path: dirPath,
+            path: filePath,
             content: newContent,
             oldVersion: updateResult.oldVersion,
           });
