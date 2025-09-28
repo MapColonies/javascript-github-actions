@@ -677,14 +677,13 @@ async function run(): Promise<void> {
         info(`Updating dependency ${chartName} in ${absFilePath}.`);
 
         const lastDotIndex = absFilePath.lastIndexOf('.');
+        const lastSlashIndex = absFilePath.lastIndexOf('/');
         // Remove base path to our temporary cloned directory.
         const filePath = absFilePath.substring(0, lastDotIndex).slice(tempDir.length + 1);
-
-        const lastSlashIndex = absFilePath.lastIndexOf('/');
         const dirPath = filePath.substring(0, lastSlashIndex);
 
         // Sanitize file path for branch name (replace slashes with dashes, remove leading slash).
-        const sanitizedFilePath = dirPath.split('/').join('-');
+        const sanitizedFilePath = filePath.split('/').join('-');
         const branchName = `update-helm-chart-${chartName}-${sanitizedFilePath}`;
 
         // 2. Check if branch exists and get existing version if it does, otherwise create it
@@ -707,7 +706,7 @@ async function run(): Promise<void> {
 
           info(`Creating or updating PR for branch '${branchName}'.`);
           await handlePullRequest(octokit, owner, repo, branchName, chartName, version, branch, {
-            path: filePath,
+            path: dirPath,
             content: newContent,
             oldVersion: updateResult.oldVersion,
           });
