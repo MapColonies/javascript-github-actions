@@ -466,7 +466,7 @@ var require_parse = __commonJS({
   "node_modules/semver/functions/parse.js"(exports2, module2) {
     "use strict";
     var SemVer = require_semver();
-    var parse3 = (version2, options, throwErrors = false) => {
+    var parse4 = (version2, options, throwErrors = false) => {
       if (version2 instanceof SemVer) {
         return version2;
       }
@@ -479,7 +479,7 @@ var require_parse = __commonJS({
         throw er;
       }
     };
-    module2.exports = parse3;
+    module2.exports = parse4;
   }
 });
 
@@ -487,9 +487,9 @@ var require_parse = __commonJS({
 var require_valid = __commonJS({
   "node_modules/semver/functions/valid.js"(exports2, module2) {
     "use strict";
-    var parse3 = require_parse();
+    var parse4 = require_parse();
     var valid = (version2, options) => {
-      const v = parse3(version2, options);
+      const v = parse4(version2, options);
       return v ? v.version : null;
     };
     module2.exports = valid;
@@ -500,9 +500,9 @@ var require_valid = __commonJS({
 var require_clean = __commonJS({
   "node_modules/semver/functions/clean.js"(exports2, module2) {
     "use strict";
-    var parse3 = require_parse();
+    var parse4 = require_parse();
     var clean = (version2, options) => {
-      const s = parse3(version2.trim().replace(/^[=v]+/, ""), options);
+      const s = parse4(version2.trim().replace(/^[=v]+/, ""), options);
       return s ? s.version : null;
     };
     module2.exports = clean;
@@ -537,10 +537,10 @@ var require_inc = __commonJS({
 var require_diff = __commonJS({
   "node_modules/semver/functions/diff.js"(exports2, module2) {
     "use strict";
-    var parse3 = require_parse();
+    var parse4 = require_parse();
     var diff = (version1, version2) => {
-      const v1 = parse3(version1, null, true);
-      const v2 = parse3(version2, null, true);
+      const v1 = parse4(version1, null, true);
+      const v2 = parse4(version2, null, true);
       const comparison = v1.compare(v2);
       if (comparison === 0) {
         return null;
@@ -611,9 +611,9 @@ var require_patch = __commonJS({
 var require_prerelease = __commonJS({
   "node_modules/semver/functions/prerelease.js"(exports2, module2) {
     "use strict";
-    var parse3 = require_parse();
+    var parse4 = require_parse();
     var prerelease = (version2, options) => {
-      const parsed = parse3(version2, options);
+      const parsed = parse4(version2, options);
       return parsed && parsed.prerelease.length ? parsed.prerelease : null;
     };
     module2.exports = prerelease;
@@ -799,7 +799,7 @@ var require_coerce = __commonJS({
   "node_modules/semver/functions/coerce.js"(exports2, module2) {
     "use strict";
     var SemVer = require_semver();
-    var parse3 = require_parse();
+    var parse4 = require_parse();
     var { safeRe: re, t } = require_re();
     var coerce = (version2, options) => {
       if (version2 instanceof SemVer) {
@@ -834,7 +834,7 @@ var require_coerce = __commonJS({
       const patch = match[4] || "0";
       const prerelease = options.includePrerelease && match[5] ? `-${match[5]}` : "";
       const build = options.includePrerelease && match[6] ? `+${match[6]}` : "";
-      return parse3(`${major}.${minor}.${patch}${prerelease}${build}`, options);
+      return parse4(`${major}.${minor}.${patch}${prerelease}${build}`, options);
     };
     module2.exports = coerce;
   }
@@ -1850,7 +1850,7 @@ var require_semver2 = __commonJS({
     var constants = require_constants();
     var SemVer = require_semver();
     var identifiers = require_identifiers();
-    var parse3 = require_parse();
+    var parse4 = require_parse();
     var valid = require_valid();
     var clean = require_clean();
     var inc = require_inc();
@@ -1888,7 +1888,7 @@ var require_semver2 = __commonJS({
     var simplifyRange = require_simplify();
     var subset = require_subset();
     module2.exports = {
-      parse: parse3,
+      parse: parse4,
       valid,
       clean,
       inc,
@@ -6410,7 +6410,7 @@ var require_stringify = __commonJS({
         props.push(doc.directives.tagString(tag));
       return props.join(" ");
     }
-    function stringify(item, ctx, onComment, onChompKeep) {
+    function stringify2(item, ctx, onComment, onChompKeep) {
       if (identity.isPair(item))
         return item.toString(ctx, onComment, onChompKeep);
       if (identity.isAlias(item)) {
@@ -6439,7 +6439,7 @@ var require_stringify = __commonJS({
 ${ctx.indent}${str}`;
     }
     exports2.createStringifyContext = createStringifyContext;
-    exports2.stringify = stringify;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -6449,7 +6449,7 @@ var require_stringifyPair = __commonJS({
     "use strict";
     var identity = require_identity();
     var Scalar = require_Scalar();
-    var stringify = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
       const { allNullValues, doc, indent, indentStep, options: { commentString, indentSeq, simpleKeys } } = ctx;
@@ -6471,7 +6471,7 @@ var require_stringifyPair = __commonJS({
       });
       let keyCommentDone = false;
       let chompKeep = false;
-      let str = stringify.stringify(key, ctx, () => keyCommentDone = true, () => chompKeep = true);
+      let str = stringify2.stringify(key, ctx, () => keyCommentDone = true, () => chompKeep = true);
       if (!explicitKey && !ctx.inFlow && str.length > 1024) {
         if (simpleKeys)
           throw new Error("With simple keys, single line scalar must not span more than 1024 characters");
@@ -6523,7 +6523,7 @@ ${indent}:`;
         ctx.indent = ctx.indent.substring(2);
       }
       let valueCommentDone = false;
-      const valueStr = stringify.stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
+      const valueStr = stringify2.stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
       let ws = " ";
       if (keyComment || vsb || vcb) {
         ws = vsb ? "\n" : "";
@@ -6661,7 +6661,7 @@ var require_addPairToJSMap = __commonJS({
     "use strict";
     var log = require_log();
     var merge2 = require_merge();
-    var stringify = require_stringify();
+    var stringify2 = require_stringify();
     var identity = require_identity();
     var toJS = require_toJS();
     function addPairToJSMap(ctx, map2, { key, value }) {
@@ -6697,7 +6697,7 @@ var require_addPairToJSMap = __commonJS({
       if (typeof jsKey !== "object")
         return String(jsKey);
       if (identity.isNode(key) && ctx?.doc) {
-        const strCtx = stringify.createStringifyContext(ctx.doc, {});
+        const strCtx = stringify2.createStringifyContext(ctx.doc, {});
         strCtx.anchors = /* @__PURE__ */ new Set();
         for (const node of ctx.anchors.keys())
           strCtx.anchors.add(node.anchor);
@@ -6764,12 +6764,12 @@ var require_stringifyCollection = __commonJS({
   "node_modules/yaml/dist/stringify/stringifyCollection.js"(exports2) {
     "use strict";
     var identity = require_identity();
-    var stringify = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyCollection(collection, ctx, options) {
       const flow = ctx.inFlow ?? collection.flow;
-      const stringify2 = flow ? stringifyFlowCollection : stringifyBlockCollection;
-      return stringify2(collection, ctx, options);
+      const stringify3 = flow ? stringifyFlowCollection : stringifyBlockCollection;
+      return stringify3(collection, ctx, options);
     }
     function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
       const { indent, options: { commentString } } = ctx;
@@ -6794,7 +6794,7 @@ var require_stringifyCollection = __commonJS({
           }
         }
         chompKeep = false;
-        let str2 = stringify.stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
+        let str2 = stringify2.stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
         if (comment2)
           str2 += stringifyComment.lineComment(str2, itemIndent, commentString(comment2));
         if (chompKeep && comment2)
@@ -6861,7 +6861,7 @@ ${indent}${line}` : "\n";
         }
         if (comment)
           reqNewline = true;
-        let str = stringify.stringify(item, itemCtx, () => comment = null);
+        let str = stringify2.stringify(item, itemCtx, () => comment = null);
         if (i < items.length - 1)
           str += ",";
         if (comment)
@@ -8215,7 +8215,7 @@ var require_stringifyDocument = __commonJS({
   "node_modules/yaml/dist/stringify/stringifyDocument.js"(exports2) {
     "use strict";
     var identity = require_identity();
-    var stringify = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyDocument(doc, options) {
       const lines = [];
@@ -8230,7 +8230,7 @@ var require_stringifyDocument = __commonJS({
       }
       if (hasDirectives)
         lines.push("---");
-      const ctx = stringify.createStringifyContext(doc, options);
+      const ctx = stringify2.createStringifyContext(doc, options);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
         if (lines.length !== 1)
@@ -8252,7 +8252,7 @@ var require_stringifyDocument = __commonJS({
           contentComment = doc.contents.comment;
         }
         const onChompKeep = contentComment ? void 0 : () => chompKeep = true;
-        let body = stringify.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
+        let body = stringify2.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
           body += stringifyComment.lineComment(body, "", commentString(contentComment));
         if ((body[0] === "|" || body[0] === ">") && lines[lines.length - 1] === "---") {
@@ -8260,7 +8260,7 @@ var require_stringifyDocument = __commonJS({
         } else
           lines.push(body);
       } else {
-        lines.push(stringify.stringify(doc.contents, ctx));
+        lines.push(stringify2.stringify(doc.contents, ctx));
       }
       if (doc.directives?.docEnd) {
         if (doc.comment) {
@@ -10387,7 +10387,7 @@ var require_cst_scalar = __commonJS({
 var require_cst_stringify = __commonJS({
   "node_modules/yaml/dist/parse/cst-stringify.js"(exports2) {
     "use strict";
-    var stringify = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
+    var stringify2 = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
     function stringifyToken(token) {
       switch (token.type) {
         case "block-scalar": {
@@ -10440,7 +10440,7 @@ var require_cst_stringify = __commonJS({
         res += stringifyToken(value);
       return res;
     }
-    exports2.stringify = stringify;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -12134,7 +12134,7 @@ var require_public_api2 = __commonJS({
       }
       return doc;
     }
-    function parse3(src, reviver, options) {
+    function parse4(src, reviver, options) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
@@ -12153,7 +12153,7 @@ var require_public_api2 = __commonJS({
       }
       return doc.toJS(Object.assign({ reviver: _reviver }, options));
     }
-    function stringify(value, replacer, options) {
+    function stringify2(value, replacer, options) {
       let _replacer = null;
       if (typeof replacer === "function" || Array.isArray(replacer)) {
         _replacer = replacer;
@@ -12175,10 +12175,10 @@ var require_public_api2 = __commonJS({
         return value.toString(options);
       return new Document.Document(value, _replacer, options).toString(options);
     }
-    exports2.parse = parse3;
+    exports2.parse = parse4;
     exports2.parseAllDocuments = parseAllDocuments;
     exports2.parseDocument = parseDocument;
-    exports2.stringify = stringify;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -13147,7 +13147,7 @@ var require_util = __commonJS({
     var { InvalidArgumentError } = require_errors2();
     var { Blob: Blob2 } = require("buffer");
     var nodeUtil = require("util");
-    var { stringify } = require("querystring");
+    var { stringify: stringify2 } = require("querystring");
     var { headerNameLowerCasedRecord } = require_constants2();
     var [nodeMajor, nodeMinor] = process.versions.node.split(".").map((v) => Number(v));
     function nop() {
@@ -13162,7 +13162,7 @@ var require_util = __commonJS({
       if (url2.includes("?") || url2.includes("#")) {
         throw new Error('Query params cannot be passed when url already contains "?" or "#".');
       }
-      const stringified = stringify(queryParams);
+      const stringified = stringify2(queryParams);
       if (stringified) {
         url2 += "?" + stringified;
       }
@@ -14821,7 +14821,7 @@ var require_parseParams = __commonJS({
 var require_basename = __commonJS({
   "node_modules/@fastify/busboy/lib/utils/basename.js"(exports2, module2) {
     "use strict";
-    module2.exports = function basename(path2) {
+    module2.exports = function basename2(path2) {
       if (typeof path2 !== "string") {
         return "";
       }
@@ -14848,7 +14848,7 @@ var require_multipart = __commonJS({
     var Dicer = require_Dicer();
     var parseParams = require_parseParams();
     var decodeText = require_decodeText();
-    var basename = require_basename();
+    var basename2 = require_basename();
     var getLimit = require_getLimit();
     var RE_BOUNDARY = /^boundary$/i;
     var RE_FIELD = /^form-data$/i;
@@ -14965,7 +14965,7 @@ var require_multipart = __commonJS({
               } else if (RE_FILENAME.test(parsed[i][0])) {
                 filename = parsed[i][1];
                 if (!preservePath) {
-                  filename = basename(filename);
+                  filename = basename2(filename);
                 }
               }
             }
@@ -27787,7 +27787,7 @@ var require_util6 = __commonJS({
         throw new Error("Invalid cookie max-age");
       }
     }
-    function stringify(cookie) {
+    function stringify2(cookie) {
       if (cookie.name.length === 0) {
         return null;
       }
@@ -27841,7 +27841,7 @@ var require_util6 = __commonJS({
       validateCookiePath,
       validateCookieValue,
       toIMFDate,
-      stringify
+      stringify: stringify2
     };
   }
 });
@@ -27991,7 +27991,7 @@ var require_cookies = __commonJS({
   "node_modules/undici/lib/cookies/index.js"(exports2, module2) {
     "use strict";
     var { parseSetCookie } = require_parse2();
-    var { stringify } = require_util6();
+    var { stringify: stringify2 } = require_util6();
     var { webidl } = require_webidl();
     var { Headers } = require_headers();
     function getCookies(headers) {
@@ -28033,9 +28033,9 @@ var require_cookies = __commonJS({
       webidl.argumentLengthCheck(arguments, 2, { header: "setCookie" });
       webidl.brandCheck(headers, Headers, { strict: false });
       cookie = webidl.converters.Cookie(cookie);
-      const str = stringify(cookie);
+      const str = stringify2(cookie);
       if (str) {
-        headers.append("Set-Cookie", stringify(cookie));
+        headers.append("Set-Cookie", stringify2(cookie));
       }
     }
     webidl.converters.DeleteCookieAttributes = webidl.dictionaryConverter([
@@ -32599,7 +32599,7 @@ var require_dist_node2 = __commonJS({
         return template.replace(/\/$/, "");
       }
     }
-    function parse3(options) {
+    function parse4(options) {
       let method = options.method.toUpperCase();
       let url2 = (options.url || "/").replace(/:([a-z]\w+)/g, "{$1}");
       let headers = Object.assign({}, options.headers);
@@ -32663,7 +32663,7 @@ var require_dist_node2 = __commonJS({
       );
     }
     function endpointWithDefaults(defaults, route, options) {
-      return parse3(merge2(defaults, route, options));
+      return parse4(merge2(defaults, route, options));
     }
     function withDefaults(oldDefaults, newDefaults) {
       const DEFAULTS2 = merge2(oldDefaults, newDefaults);
@@ -32672,7 +32672,7 @@ var require_dist_node2 = __commonJS({
         DEFAULTS: DEFAULTS2,
         defaults: withDefaults.bind(null, DEFAULTS2),
         merge: merge2.bind(null, DEFAULTS2),
-        parse: parse3
+        parse: parse4
       });
     }
     var endpoint = withDefaults(null, DEFAULTS);
@@ -36080,12 +36080,12 @@ var require_github = __commonJS({
 });
 
 // actions/update-chart-dependency/main.ts
-var import_os = __toESM(require("os"));
-var import_path = __toESM(require("path"));
-var import_fs = __toESM(require("fs"));
+var os = __toESM(require("os"));
+var path = __toESM(require("path"));
+var fs = __toESM(require("fs"));
 var import_semver = __toESM(require_semver2());
 var import_node_fetch = __toESM(require_lib2());
-var import_yaml = __toESM(require_dist());
+var yaml = __toESM(require_dist());
 var import_core7 = __toESM(require_core());
 var import_github = __toESM(require_github());
 
@@ -47738,29 +47738,29 @@ async function downloadRepoDir(octokit, owner, repo, ref, remoteDir, localDir) {
   }
   for (const item of data) {
     if (item.type === "dir") {
-      const subLocalDir = import_path.default.join(localDir, item.name);
-      if (!import_fs.default.existsSync(subLocalDir)) {
-        import_fs.default.mkdirSync(subLocalDir);
+      const subLocalDir = path.join(localDir, item.name);
+      if (!fs.existsSync(subLocalDir)) {
+        fs.mkdirSync(subLocalDir);
       }
       await downloadRepoDir(octokit, owner, repo, ref, item.path, subLocalDir);
     } else if (item.type === "file" && typeof item.download_url === "string") {
       const response = await (0, import_node_fetch.default)(item.download_url);
       const fileContent = await response.text();
-      import_fs.default.writeFileSync(import_path.default.join(localDir, item.name), fileContent, "utf8");
+      fs.writeFileSync(path.join(localDir, item.name), fileContent, "utf8");
     }
   }
 }
 function findChartFiles(workspace, chartDir) {
-  const files = [CHART_FILE_NAME, HELMFILE_NAME].flatMap((name) => ["yaml", "yml"].map((ext) => import_path.default.join(workspace, chartDir, `${name}.${ext}`))).filter((file2) => import_fs.default.existsSync(file2));
+  const files = [CHART_FILE_NAME, HELMFILE_NAME].flatMap((name) => ["yaml", "yml"].map((ext) => path.join(workspace, chartDir, `${name}.${ext}`))).filter((file2) => fs.existsSync(file2));
   return files;
 }
 function updateChartYamlDependency(filePath, dependencyName, version2) {
-  const fileContent = import_fs.default.readFileSync(filePath, "utf8");
+  const fileContent = fs.readFileSync(filePath, "utf8");
   let updated = false;
   let oldVersion;
   let chart;
   try {
-    chart = import_yaml.default.parse(fileContent);
+    chart = yaml.parse(fileContent);
   } catch {
     return { updated: false };
   }
@@ -47777,16 +47777,16 @@ function updateChartYamlDependency(filePath, dependencyName, version2) {
   if (!updated) {
     return { updated: false };
   }
-  const newContent = import_yaml.default.stringify(chart);
+  const newContent = yaml.stringify(chart);
   return { updated: true, oldVersion, newContent };
 }
 function updateHelmfileReleaseVersion(filePath, releaseName, version2) {
-  const fileContent = import_fs.default.readFileSync(filePath, "utf8");
+  const fileContent = fs.readFileSync(filePath, "utf8");
   let updated = false;
   let oldVersion;
   let helmfile;
   try {
-    helmfile = import_yaml.default.parse(fileContent);
+    helmfile = yaml.parse(fileContent);
   } catch {
     return { updated: false };
   }
@@ -47803,11 +47803,11 @@ function updateHelmfileReleaseVersion(filePath, releaseName, version2) {
   if (!updated) {
     return { updated: false };
   }
-  const newContent = import_yaml.default.stringify(helmfile);
+  const newContent = yaml.stringify(helmfile);
   return { updated: true, oldVersion, newContent };
 }
 function getChartFilesWithDirs(workspace) {
-  const chartDirents = import_fs.default.readdirSync(workspace, { withFileTypes: true });
+  const chartDirents = fs.readdirSync(workspace, { withFileTypes: true });
   const chartFilesWithDirs = [];
   for (const dirent of chartDirents) {
     if (!dirent.isDirectory()) {
@@ -47818,30 +47818,14 @@ function getChartFilesWithDirs(workspace) {
     for (const absFilePath of files) {
       chartFilesWithDirs.push({ chartDir: dir, absFilePath });
     }
-    const subDir = import_path.default.join(workspace, dir);
+    const subDir = path.join(workspace, dir);
     const subChartFilesWithDirs = getChartFilesWithDirs(subDir).map((file2) => ({
-      chartDir: import_path.default.join(dir, file2.chartDir),
+      chartDir: path.join(dir, file2.chartDir),
       absFilePath: file2.absFilePath
     }));
     chartFilesWithDirs.push(...subChartFilesWithDirs);
   }
   return chartFilesWithDirs;
-}
-async function getFileSha(octokit, owner, repo, path2, branch) {
-  try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: path2,
-      ref: branch
-    });
-    if ("sha" in data) {
-      return data.sha;
-    }
-    return void 0;
-  } catch {
-    return void 0;
-  }
 }
 async function createBranch(octokit, owner, repo, baseBranch, newBranch) {
   const baseRef = `heads/${baseBranch}`;
@@ -47858,34 +47842,6 @@ async function createBranch(octokit, owner, repo, baseBranch, newBranch) {
     sha: baseSha
   });
 }
-async function updateFilesInBranch(octokit, owner, repo, branchName, dependency, newVersion, fileUpdates) {
-  for (const { path: filePath, content, oldVersion } of fileUpdates) {
-    try {
-      const fileSha = await getFileSha(octokit, owner, repo, filePath, branchName);
-      const hasOldVersion = typeof oldVersion === "string" && oldVersion.length > 0;
-      const versionMsg = hasOldVersion ? `from version ${oldVersion} to ${newVersion}` : `to version ${newVersion}`;
-      await octokit.rest.repos.createOrUpdateFileContents({
-        owner,
-        repo,
-        path: filePath,
-        message: `deps: update \`${dependency}\` ${versionMsg} in \`${filePath}\``,
-        content: Buffer.from(content).toString("base64"),
-        branch: branchName,
-        sha: fileSha,
-        committer: {
-          name: "github-actions[bot]",
-          email: "github-actions[bot]@users.noreply.github.com"
-        },
-        author: {
-          name: "github-actions[bot]",
-          email: "github-actions[bot]@users.noreply.github.com"
-        }
-      });
-    } catch (err) {
-      (0, import_core7.warning)(`Failed to update file \`${filePath}\`: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-}
 async function getExistingPrNumber(octokit, owner, repo, branchName) {
   const { data: prs } = await octokit.rest.pulls.list({ owner, repo, head: `${owner}:${branchName}`, state: "open" });
   if (Array.isArray(prs) && prs.length > 0 && typeof prs[0]?.number === "number") {
@@ -47893,34 +47849,39 @@ async function getExistingPrNumber(octokit, owner, repo, branchName) {
   }
   return void 0;
 }
-async function createPullRequest(octokit, owner, repo, branchName, prTitle, prBody, dependencyName, newVersion, baseBranch, fileUpdate) {
+async function handlePullRequest(octokit, owner, repo, branchName, dependencyName, newVersion, baseBranch, fileUpdate) {
   const oldVersion = fileUpdate.oldVersion;
   const chart = fileUpdate.path;
   const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: \`${oldVersion}\`)` : "";
+  const prNumber = await getExistingPrNumber(octokit, owner, repo, branchName);
+  const prTitle = `deps(${dependencyName}): update from ${oldVer} to ${newVersion} in chart ${chart}`;
   const body = [
     `Update Helm chart dependency \`${dependencyName}\` to version \`${newVersion}\`.`,
     "",
     "### Updated charts:",
     `- \`${chart}\`${oldVer}`
   ].join("\n");
-  await octokit.rest.pulls.create({
-    owner,
-    repo,
-    title: `deps(${dependencyName}): update from ${oldVersion} to ${newVersion} in chart ${chart}`,
-    head: branchName,
-    base: baseBranch,
-    body
-  });
-}
-async function updatePullRequest(octokit, owner, repo, prNumber, prTitle, prBody) {
-  await octokit.rest.pulls.update({
-    owner,
-    repo,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    pull_number: prNumber,
-    title: prTitle,
-    body: prBody
-  });
+  if (prNumber !== void 0) {
+    (0, import_core7.info)(`Pull request for branch '${branchName}' already exists, it will be updated if needed.`);
+    await octokit.rest.pulls.update({
+      owner,
+      repo,
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      pull_number: prNumber,
+      title: prTitle,
+      body
+    });
+  } else {
+    (0, import_core7.info)(`No existing pull request for branch '${branchName}', a new one will be created if needed.`);
+    await octokit.rest.pulls.create({
+      owner,
+      repo,
+      title: prTitle,
+      head: branchName,
+      base: baseBranch,
+      body
+    });
+  }
 }
 async function branchExistsRemote(octokit, owner, repo, branchName) {
   try {
@@ -47948,7 +47909,7 @@ async function getExistingVersionInBranch(octokit, owner, repo, filePath, branch
 }
 function getVersionFromChartYaml(fileContent, chartName) {
   try {
-    const chart = import_yaml.default.parse(fileContent);
+    const chart = yaml.parse(fileContent);
     if (Array.isArray(chart.dependencies)) {
       for (const dep of chart.dependencies) {
         if (dep.name === chartName && typeof dep.version === "string") {
@@ -47963,7 +47924,7 @@ function getVersionFromChartYaml(fileContent, chartName) {
 }
 function getVersionFromHelmfileYaml(fileContent, chartName) {
   try {
-    const helmfile = import_yaml.default.parse(fileContent);
+    const helmfile = yaml.parse(fileContent);
     if (typeof helmfile === "object" && helmfile !== null && "releases" in helmfile && Array.isArray(helmfile.releases)) {
       for (const rel of helmfile.releases) {
         const matchedVersion = getVersionIfChartMatches(rel, chartName);
@@ -47981,7 +47942,7 @@ function shouldUpdateBranch(newVersion, existingVersion) {
   if (typeof existingVersion !== "string" || existingVersion.length === 0) {
     return true;
   }
-  return (0, import_semver.compare)(newVersion, existingVersion) > 0;
+  return (0, import_semver.gt)(newVersion, existingVersion);
 }
 async function run() {
   try {
@@ -47996,7 +47957,7 @@ async function run() {
     const repoParts = targetRepo.split("/");
     const owner = (repoParts[0] ?? "").trim();
     const repo = (repoParts[1] ?? "").trim();
-    const tempDir = import_fs.default.mkdtempSync(import_path.default.join(import_os.default.tmpdir(), "chart-repo-"));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-repo-"));
     await downloadRepoDir(octokit, owner, repo, branch, "", tempDir);
     (0, import_core7.info)(`Looking for charts in '${targetRepo}' with dependency '${chartName}'.`);
     const chartFilesWithDirs = getChartFilesWithDirs(tempDir);
@@ -48007,7 +47968,7 @@ async function run() {
     let updatedAny = false;
     for (const { chartDir, absFilePath } of chartFilesWithDirs) {
       try {
-        const fileName = import_path.default.basename(absFilePath);
+        const fileName = path.basename(absFilePath);
         const relFilePath = `${chartDir}/${fileName}`;
         let updateResult;
         (0, import_core7.info)(`Looking for needed updates in ${absFilePath}...`);
@@ -48034,36 +47995,17 @@ async function run() {
         if (!branchExists) {
           (0, import_core7.info)(`Branch '${branchName}' does not exist, creating it from '${branch}'.`);
           await createBranch(octokit, owner, repo, branch, branchName);
-        } else if (!shouldUpdate) {
-          (0, import_core7.info)(`Branch '${branchName}' exists and has version '${existingVersion}' which is newer or equal to '${version2}'. Skipping update.`);
-          continue;
-        } else {
-          (0, import_core7.info)(`Branch '${branchName}' exists, updating with changes.`);
         }
-        await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version2, [
-          { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
-        ]);
-        const prNumber = await getExistingPrNumber(octokit, owner, repo, branchName);
-        const prTitle = `deps(${chartName}): update from ${updateResult.oldVersion} to ${version2} in chart ${chartDir}`;
-        const body = [
-          `Update Helm chart dependency \`${chartName}\` to version \`${version2}\`.`,
-          "",
-          "### Updated charts:",
-          `- \`${chartDir}\`${updateResult.oldVersion}`
-        ].join("\n");
-        if (prNumber !== void 0) {
-          (0, import_core7.info)(`Pull request for branch '${branchName}' already exists and will be updated.`);
-          await updatePullRequest(octokit, owner, repo, prNumber, prTitle, body);
-        } else {
-          (0, import_core7.info)(`No existing pull request for branch '${branchName}', a new one will be created.`);
-          await createPullRequest(octokit, owner, repo, branchName, prTitle, body, chartName, version2, branch, {
+        if (shouldUpdate) {
+          (0, import_core7.info)(`Creating or updating PR for branch '${branchName}'.`);
+          await handlePullRequest(octokit, owner, repo, branchName, chartName, version2, branch, {
             path: dirPath,
             content: newContent,
             oldVersion: updateResult.oldVersion
           });
+          (0, import_core7.info)(`Successfully created PR to update dependency '${chartName}' to version ${version2} in chart '${chartDir}'`);
+          updatedAny = true;
         }
-        (0, import_core7.info)(`Successfully updated dependency '${chartName}' to version ${version2} in chart '${chartDir}'`);
-        updatedAny = true;
       } catch (chartError) {
         (0, import_core7.warning)(`Failed to process chart '${chartDir}': ${chartError instanceof Error ? chartError.message : ""}`);
       }
