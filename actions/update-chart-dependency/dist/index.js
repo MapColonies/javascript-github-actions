@@ -47827,6 +47827,22 @@ function getChartFilesWithDirs(workspace) {
   }
   return chartFilesWithDirs;
 }
+async function getFileSha(octokit, owner, repo, path2, branch) {
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: path2,
+      ref: branch
+    });
+    if ("sha" in data) {
+      return data.sha;
+    }
+    return void 0;
+  } catch {
+    return void 0;
+  }
+}
 async function createBranch(octokit, owner, repo, baseBranch, newBranch) {
   const baseRef = `heads/${baseBranch}`;
   const { data: baseBranchData } = await octokit.rest.git.getRef({
@@ -47841,6 +47857,34 @@ async function createBranch(octokit, owner, repo, baseBranch, newBranch) {
     ref: `refs/heads/${newBranch}`,
     sha: baseSha
   });
+}
+async function updateFilesInBranch(octokit, owner, repo, branchName, dependency, newVersion, fileUpdates) {
+  for (const { path: filePath, content, oldVersion } of fileUpdates) {
+    try {
+      const fileSha = await getFileSha(octokit, owner, repo, filePath, branchName);
+      const hasOldVersion = typeof oldVersion === "string" && oldVersion.length > 0;
+      const versionMsg = hasOldVersion ? `from version ${oldVersion} to ${newVersion}` : `to version ${newVersion}`;
+      await octokit.rest.repos.createOrUpdateFileContents({
+        owner,
+        repo,
+        path: filePath,
+        message: `deps: update \`${dependency}\` ${versionMsg} in \`${filePath}\``,
+        content: Buffer.from(content).toString("base64"),
+        branch: branchName,
+        sha: fileSha,
+        committer: {
+          name: "github-actions[bot]",
+          email: "github-actions[bot]@users.noreply.github.com"
+        },
+        author: {
+          name: "github-actions[bot]",
+          email: "github-actions[bot]@users.noreply.github.com"
+        }
+      });
+    } catch (err) {
+      (0, import_core7.warning)(`Failed to update file \`${filePath}\`: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 }
 async function getExistingPrNumber(octokit, owner, repo, branchName) {
   const { data: prs } = await octokit.rest.pulls.list({ owner, repo, head: `${owner}:${branchName}`, state: "open" });
@@ -47997,6 +48041,9 @@ async function run() {
           await createBranch(octokit, owner, repo, branch, branchName);
         }
         if (shouldUpdate) {
+          await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version2, [
+            { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion }
+          ]);
           (0, import_core7.info)(`Creating or updating PR for branch '${branchName}'.`);
           await handlePullRequest(octokit, owner, repo, branchName, chartName, version2, branch, {
             path: dirPath,

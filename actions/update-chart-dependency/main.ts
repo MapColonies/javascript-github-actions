@@ -697,6 +697,10 @@ async function run(): Promise<void> {
 
         // 3. Update files in branch and create PR if needed
         if (shouldUpdate) {
+          await updateFilesInBranch(octokit, owner, repo, branchName, chartName, version, [
+            { path: relFilePath, content: newContent, oldVersion: updateResult.oldVersion },
+          ]);
+
           info(`Creating or updating PR for branch '${branchName}'.`);
           await handlePullRequest(octokit, owner, repo, branchName, chartName, version, branch, {
             path: dirPath,
