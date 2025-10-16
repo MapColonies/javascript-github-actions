@@ -335,7 +335,7 @@ describe('update-chart-dependency Action', () => {
       repo: 'test-repo',
       head: expectedBranchName,
       base: 'master',
-      title: `deps(test-service): update from  (old version: \`0.0.1\`) to \`1.2.3\` in chart ${chartPath}`,
+      title: `deps(test-service): update from \`0.0.1\` to \`1.2.3\` in chart ${chartPath}`,
       body: `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${chartPath}\` (old version: \`0.0.1\`)`,
     });
     expect(pullsUpdate).not.toHaveBeenCalled();
@@ -388,7 +388,7 @@ describe('update-chart-dependency Action', () => {
       repo: 'test-repo',
       // eslint-disable-next-line @typescript-eslint/naming-convention
       pull_number: 123,
-      title: 'deps(test-service): update from  (old version: `0.0.1`) to `1.2.3` in chart chartA/Chart',
+      title: 'deps(test-service): update from `0.0.1` to `1.2.3` in chart chartA/Chart',
       body: 'Update Helm chart dependency `test-service` to version `1.2.3`.\n\n### Updated charts:\n- `chartA/Chart` (old version: `0.0.1`)',
     });
   });
@@ -621,7 +621,7 @@ describe('update-chart-dependency Action', () => {
       const filePath = `chart${chartLetter}/Chart`;
       const expectedBody = `Update Helm chart dependency \`test-service\` to version \`1.2.3\`.\n\n### Updated charts:\n- \`${filePath}\` (old version: \`0.0.1\`)`;
       expect(prCall.body).toBe(expectedBody);
-      expect(prCall.title).toBe(`deps(test-service): update from  (old version: \`0.0.1\`) to \`1.2.3\` in chart ${filePath}`);
+      expect(prCall.title).toBe(`deps(test-service): update from \`0.0.1\` to \`1.2.3\` in chart ${filePath}`);
     }
   });
 
@@ -692,7 +692,7 @@ describe('update-chart-dependency Action', () => {
       head: `update-helm-chart-test-service-${chartDir}-Chart`,
       owner: 'test-owner',
       repo: 'test-repo',
-      title: `deps(test-service): update from  (old version: \`0.0.1\`) to \`1.2.3\` in chart ${chartDir}/Chart`,
+      title: `deps(test-service): update from \`0.0.1\` to \`1.2.3\` in chart ${chartDir}/Chart`,
     });
     // Second run: update PR to version 2.0.0
     pullsList.mockResolvedValue({ data: [{ number: 123 }] }); // PR exists
@@ -710,7 +710,7 @@ describe('update-chart-dependency Action', () => {
       pull_number: 123,
       owner: 'test-owner',
       repo: 'test-repo',
-      title: `deps(test-service): update from  (old version: \`1.2.3\`) to \`2.0.0\` in chart ${chartDir}/Chart`,
+      title: `deps(test-service): update from \`1.2.3\` to \`2.0.0\` in chart ${chartDir}/Chart`,
       body: `Update Helm chart dependency \`test-service\` to version \`2.0.0\`.
 \n### Updated charts:\n- \`${chartDir}/Chart\` (old version: \`1.2.3\`)`,
     });

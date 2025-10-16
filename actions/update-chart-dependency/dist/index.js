@@ -47896,14 +47896,14 @@ async function getExistingPrNumber(octokit, owner, repo, branchName) {
 async function handlePullRequest(octokit, owner, repo, branchName, dependencyName, newVersion, baseBranch, fileUpdate) {
   const oldVersion = fileUpdate.oldVersion;
   const chart = fileUpdate.path;
-  const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? ` (old version: \`${oldVersion}\`)` : "";
+  const oldVer = typeof oldVersion === "string" && oldVersion.length > 0 ? `\`${oldVersion}\`` : "";
   const prNumber = await getExistingPrNumber(octokit, owner, repo, branchName);
   const prTitle = `deps(${dependencyName}): update from ${oldVer} to \`${newVersion}\` in chart ${chart}`;
   const body = [
     `Update Helm chart dependency \`${dependencyName}\` to version \`${newVersion}\`.`,
     "",
     "### Updated charts:",
-    `- \`${chart}\`${oldVer}`
+    `- \`${chart}\` (old version: ${oldVer})`
   ].join("\n");
   if (prNumber !== void 0) {
     (0, import_core7.info)(`Pull request for branch '${branchName}' already exists, it will be updated if needed.`);
