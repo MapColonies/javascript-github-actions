@@ -467,7 +467,7 @@ async function handlePullRequest(
   const oldVer = typeof oldVersion === 'string' && oldVersion.length > 0 ? ` (old version: \`${oldVersion}\`)` : '';
 
   const prNumber = await getExistingPrNumber(octokit, owner, repo, branchName);
-  const prTitle = `deps(${dependencyName}): update from ${oldVer} to ${newVersion} in chart ${chart}`;
+  const prTitle = `deps(${dependencyName}): update from ${oldVer} to \`${newVersion}\` in chart ${chart}`;
   const body = [
     `Update Helm chart dependency \`${dependencyName}\` to version \`${newVersion}\`.`,
     '',
