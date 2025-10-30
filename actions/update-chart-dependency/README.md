@@ -7,7 +7,7 @@ This GitHub Action updates the version of a specific dependency in the `Chart` a
 - Accepts a dependency service name and version as inputs.
 - Finds all chart directories in a remote repository.
 - Updates the version of the specified chart in all Chart.yaml and helmfile.yaml files where it is listed as a dependency.
-- Creates or updates a dedicated branch for each change and opens ot updates a PR with a summary of the update details.
+- Creates or updates a dedicated branch for each change and opens or updates a PR with a summary of the update details.
 - Uses only Node.js built-in modules and the official GitHub Actions toolkit.
 
 ## Inputs
