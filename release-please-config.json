@@ -64,6 +64,11 @@
       "package-name": "jira-integration",
       "release-type": "simple",
       "extra-files": ["README.md"]
+    },
+    "actions/update-chart-dependency": {
+      "package-name": "update-chart-dependency",
+      "release-type": "simple",
+      "extra-files": ["README.md"]
     }
   }
 }
