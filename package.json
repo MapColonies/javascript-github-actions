@@ -36,13 +36,13 @@
     "esbuild": "^0.25.5",
     "eslint": "^9.23.0",
     "husky": "^9.1.7",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "ora": "^8.2.0",
     "prettier": "^3.5.3",
     "pretty-quick": "^4.1.1",
     "typescript": "^5.8.2",
     "vitest": "^3.2.3",
-    "yaml": "^2.8.0"
+    "yaml": "^2.8.2"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
